@@ -50,6 +50,7 @@ code-signing.pfx
 !DOWNLOAD_GUIDE.md
 !RELEASE_GUIDE.md
 !QUICK_REFERENCE.md
+!DISTRIBUTION_SETUP_SUMMARY.md
 
 # Database files
 *.db
