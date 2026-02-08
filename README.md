@@ -17,7 +17,17 @@ A production-grade, cross-platform desktop application for **Production, Orders,
 ✅ **Secure IPC**: Context isolation, sandboxed renderer process  
 ✅ **Feature-Sliced**: Scalable domain-driven architecture
 
-## 🚀 Quick Start
+## 📥 Download Pre-Built Application
+
+**Want to use the app without building from source?**
+
+👉 **[Download the latest release](https://github.com/elionshate/productionapp/releases/latest)**
+
+See [DOWNLOAD_GUIDE.md](DOWNLOAD_GUIDE.md) for detailed installation instructions.
+
+---
+
+## 🚀 Quick Start (For Developers)
 
 ### Prerequisites
 - Node.js 20+ and npm
