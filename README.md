@@ -23,7 +23,10 @@ A production-grade, cross-platform desktop application for **Production, Orders,
 
 👉 **[Download the latest release](https://github.com/elionshate/productionapp/releases/latest)**
 
-See [DOWNLOAD_GUIDE.md](DOWNLOAD_GUIDE.md) for detailed installation instructions.
+📖 Quick guides:
+- **For Users**: [DOWNLOAD_GUIDE.md](DOWNLOAD_GUIDE.md) - Installation instructions
+- **For Maintainers**: [RELEASE_GUIDE.md](RELEASE_GUIDE.md) - Creating releases
+- **Quick Reference**: [QUICK_REFERENCE.md](QUICK_REFERENCE.md) - TL;DR for both
 
 ---
 
