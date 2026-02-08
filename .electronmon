@@ -1,0 +1,4 @@
+{
+  "patterns": ["dist/main/**/*.js"],
+  "ignore": ["**/*.db", "**/*.db-journal", "**/*.db-wal", "out/**", "node_modules/**", ".next/**", "prisma/**"]
+}

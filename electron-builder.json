@@ -1,0 +1,68 @@
+{
+  "appId": "com.productionapp.app",
+  "productName": "Production Management",
+  "directories": {
+    "output": "dist/installer",
+    "buildResources": "public"
+  },
+  "publish": [
+    {
+      "provider": "github",
+      "owner": "OWNER",
+      "repo": "REPO"
+    }
+  ],
+  "files": [
+    "out/**/*",
+    "dist/main/**/*",
+    "node_modules/**/*",
+    "package.json",
+    ".env",
+    {
+      "from": "node_modules/.prisma",
+      "to": "node_modules/.prisma",
+      "filter": ["**/*"]
+    }
+  ],
+  "asarUnpack": [
+    "node_modules/better-sqlite3/**/*"
+  ],
+  "win": {
+    "target": [
+      {
+        "target": "nsis",
+        "arch": ["x64"]
+      }
+    ],
+    "icon": "public/icon.ico",
+    "artifactName": "${productName}-Setup-${version}.${ext}",
+    "cscLink": "code-signing.pfx",
+    "cscKeyPassword": "ProductionApp2026",
+    "forceCodeSigning": true
+  },
+  "nsis": {
+    "oneClick": false,
+    "allowToChangeInstallationDirectory": true,
+    "allowElevation": true,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "Production Management",
+    "runAfterFinish": true,
+    "installerIcon": "public/icon.ico",
+    "uninstallerIcon": "public/icon.ico",
+    "installerHeader": "public/icon.ico",
+    "installerSidebar": "public/icon.png",
+    "deleteAppDataOnUninstall": false,
+    "perMachine": false
+  },
+  "mac": {
+    "target": ["dmg"],
+    "icon": "public/icon.icns",
+    "category": "public.app-category.business"
+  },
+  "linux": {
+    "target": ["AppImage"],
+    "icon": "public/icon.png",
+    "category": "Office"
+  }
+}
