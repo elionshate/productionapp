@@ -47,6 +47,8 @@ code-signing.pfx
 *.md
 !README.md
 !@agent_logs.md
+!DOWNLOAD_GUIDE.md
+!RELEASE_GUIDE.md
 
 # Database files
 *.db
