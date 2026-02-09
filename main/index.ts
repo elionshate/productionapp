@@ -70,14 +70,56 @@ async function initializeDatabase() {
     rawDb.pragma('journal_mode = WAL');
     rawDb.pragma('foreign_keys = ON');
 
+    // Schema versioning: bump this number whenever the embedded SCHEMA_SQL changes
+    const CURRENT_SCHEMA_VERSION = 2; // v2: color refactor + labels + shipped_at
+
     // Check if schema already exists by looking for the users table
     const tableCheck = rawDb.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='users'").get();
     if (!tableCheck) {
       console.log('[DB] Fresh database — creating schema...');
       rawDb.exec(SCHEMA_SQL);
-      console.log('[DB] Schema created successfully');
+      // Store schema version
+      rawDb.exec(`CREATE TABLE IF NOT EXISTS "_schema_version" ("version" INTEGER NOT NULL DEFAULT 0)`);
+      rawDb.exec(`INSERT INTO "_schema_version" ("version") VALUES (${CURRENT_SCHEMA_VERSION})`);
+      console.log(`[DB] Schema created successfully (version ${CURRENT_SCHEMA_VERSION})`);
     } else {
-      console.log('[DB] Database schema already exists');
+      // Check schema version
+      const versionTableExists = rawDb.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='_schema_version'").get();
+      let dbVersion = 0;
+      if (versionTableExists) {
+        const row = rawDb.prepare('SELECT version FROM "_schema_version" LIMIT 1').get() as { version: number } | undefined;
+        dbVersion = row?.version ?? 0;
+      }
+
+      if (dbVersion < CURRENT_SCHEMA_VERSION) {
+        console.log(`[DB] Schema outdated (v${dbVersion} → v${CURRENT_SCHEMA_VERSION}) — recreating non-user tables...`);
+        rawDb.pragma('foreign_keys = OFF');
+        // Drop all tables except users and _schema_version
+        const tablesToDrop = [
+          'material_requirements', 'manufacturing_orders', 'order_items', 'orders',
+          'inventory_transactions', 'inventory', 'product_stock', 'product_elements',
+          'products', 'elements', 'colors',
+        ];
+        for (const t of tablesToDrop) {
+          rawDb.exec(`DROP TABLE IF EXISTS "${t}"`);
+        }
+        // Also drop old unique indexes that may reference removed columns
+        rawDb.exec(`DROP INDEX IF EXISTS "product_elements_product_id_element_id_color_id_key"`);
+        rawDb.exec(`DROP INDEX IF EXISTS "inventory_element_id_color_id_key"`);
+        rawDb.exec(`DROP INDEX IF EXISTS "material_requirements_manufacturing_order_id_element_id_color_id_key"`);
+        rawDb.pragma('foreign_keys = ON');
+
+        // Recreate all tables with current schema
+        rawDb.exec(SCHEMA_SQL);
+
+        // Update schema version
+        rawDb.exec(`CREATE TABLE IF NOT EXISTS "_schema_version" ("version" INTEGER NOT NULL DEFAULT 0)`);
+        rawDb.exec(`DELETE FROM "_schema_version"`);
+        rawDb.exec(`INSERT INTO "_schema_version" ("version") VALUES (${CURRENT_SCHEMA_VERSION})`);
+        console.log(`[DB] Schema upgraded to version ${CURRENT_SCHEMA_VERSION}`);
+      } else {
+        console.log(`[DB] Database schema up to date (version ${dbVersion})`);
+      }
     }
 
     rawDb.close();
@@ -101,6 +143,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS "users_username_key" ON "users"("username");
 CREATE TABLE IF NOT EXISTS "elements" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "unique_name" TEXT NOT NULL,
+    "label" TEXT NOT NULL DEFAULT '',
     "color" TEXT NOT NULL,
     "color_2" TEXT,
     "is_dual_color" BOOLEAN NOT NULL DEFAULT 0,
@@ -114,6 +157,7 @@ CREATE TABLE IF NOT EXISTS "products" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "serial_number" TEXT NOT NULL,
     "category" TEXT NOT NULL,
+    "label" TEXT NOT NULL DEFAULT '',
     "units_per_assembly" INTEGER NOT NULL DEFAULT 1,
     "units_per_box" INTEGER NOT NULL DEFAULT 1,
     "image_url" TEXT,
@@ -163,6 +207,7 @@ CREATE TABLE IF NOT EXISTS "orders" (
     "order_number" INTEGER NOT NULL,
     "client_name" TEXT NOT NULL,
     "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "shipped_at" DATETIME,
     "status" TEXT NOT NULL DEFAULT 'pending',
     "notes" TEXT
 );
@@ -1571,8 +1616,11 @@ ipcMain.handle('products:create', async (_event, data: CreateProductDTO): Promis
       },
     });
     return { success: true, data: product };
-  } catch (error) {
+  } catch (error: any) {
     console.error('[IPC] products:create failed:', error);
+    if (error?.code === 'P2002') {
+      return { success: false, error: `A product with serial number "${data.serialNumber}" already exists.` };
+    }
     return { success: false, error: String(error) };
   }
 });
