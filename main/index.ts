@@ -751,7 +751,23 @@ ipcMain.handle('orders:update', async (_event, id: string, data: UpdateOrderDTO)
 
 ipcMain.handle('orders:delete', async (_event, id: string): Promise<IPCResponse<{ id: string }>> => {
   try {
-    await prisma.order.delete({ where: { id } });
+    // Delete in correct order to avoid FK constraint errors:
+    // 1. MaterialRequirements (reference ManufacturingOrders)
+    // 2. ManufacturingOrders (reference Orders)
+    // 3. OrderItems (cascade from Order, but explicit for clarity)
+    // 4. Order itself
+    await prisma.$transaction(async (tx) => {
+      // Delete material requirements for all manufacturing orders of this order
+      await tx.materialRequirement.deleteMany({
+        where: { manufacturingOrder: { orderId: id } },
+      });
+      // Delete manufacturing orders
+      await tx.manufacturingOrder.deleteMany({ where: { orderId: id } });
+      // Delete order items
+      await tx.orderItem.deleteMany({ where: { orderId: id } });
+      // Delete the order
+      await tx.order.delete({ where: { id } });
+    });
     return { success: true, data: { id } };
   } catch (error) {
     console.error('[IPC] orders:delete failed:', error);

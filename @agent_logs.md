@@ -1237,3 +1237,141 @@ To install on another device without GitHub Releases:
 - ✅ Version badge + download progress + "Restart to Update" button in header
 - ✅ IPC channels for manual update check and quit-and-install
 - ✅ TypeScript compilation clean, Next.js build clean, installer built and signed
+
+---
+
+## Session 6 — 2026-02-09: Order Deletion Freeze Fix
+
+### Problem
+When attempting to delete orders from the Shipped tab, the UI froze with the delete button stuck on "Deleting..." state and never recovered. The deletion silently failed in the background.
+
+### Root Causes Identified (2 bugs)
+
+#### 1. **Backend FK Constraint Violation** (main/index.ts)
+- **Issue**: `orders:delete` handler tried to directly delete the Order with `prisma.order.delete({ where: { id } })`
+- **Problem**: The Order had foreign key references from ManufacturingOrders (via `orderId`), which were NOT set to cascade delete
+- **Result**: SQLite raised FK constraint violation error `P2003` — "Foreign key constraint violated"
+- **Symptom**: The IPC call returned `{ success: false, error: "ForeignKeyConstraintViolation" }` but the UI didn't show this error
+
+#### 2. **Frontend Error Not Displayed + isDeleting Never Reset** (order-card.tsx + app/page.tsx)
+- **Issue 1**: `onDelete` callback was fire-and-forget (not async, not awaited)
+- **Issue 2**: `handleDelete` set `isDeleting = true` but never reset it to `false` on error
+- **Result**: Button stuck on "Deleting..." indefinitely, user sees no error message, cannot retry
+
+### Solutions Implemented
+
+#### Backend Fix (main/index.ts, line 752)
+Changed from simple delete to **transactional cascade delete**:
+```typescript
+ipcMain.handle('orders:delete', async (_event, id: string): Promise<IPCResponse<{ id: string }>> => {
+  try {
+    // Delete in correct order to avoid FK constraint errors:
+    // 1. MaterialRequirements (reference ManufacturingOrders)
+    // 2. ManufacturingOrders (reference Orders)
+    // 3. OrderItems (cascade from Order, but explicit for clarity)
+    // 4. Order itself
+    await prisma.$transaction(async (tx) => {
+      // Delete material requirements for all manufacturing orders of this order
+      await tx.materialRequirement.deleteMany({
+        where: { manufacturingOrder: { orderId: id } },
+      });
+      // Delete manufacturing orders
+      await tx.manufacturingOrder.deleteMany({ where: { orderId: id } });
+      // Delete order items
+      await tx.orderItem.deleteMany({ where: { orderId: id } });
+      // Delete the order
+      await tx.order.delete({ where: { id } });
+    });
+    return { success: true, data: { id } };
+  } catch (error) {
+    console.error('[IPC] orders:delete failed:', error);
+    return { success: false, error: String(error) };
+  }
+});
+```
+
+**Why this works**:
+- Orders MaterialRequirements first (no other table depends on them)
+- Then ManufacturingOrders (MaterialRequirements depended on these)
+- Then OrderItems (OrderItem.orderId has `onDelete: Cascade` but making it explicit)
+- Finally Order (now safe to delete, all children removed)
+- All in a single `$transaction` — either all succeed or all rollback
+
+#### Frontend Fixes (order-card.tsx)
+1. **Changed callback signature** to async:
+   ```typescript
+   onDelete?: (id: string) => Promise<void> | void;
+   ```
+
+2. **Updated handleDelete** to await and handle errors:
+   ```typescript
+   async function handleDelete() {
+     if (!confirmDelete) {
+       setConfirmDelete(true);
+       setTimeout(() => setConfirmDelete(false), 3000);
+       return;
+     }
+     setIsDeleting(true);
+     try {
+       await onDelete?.(order.id);
+     } catch {
+       setIsDeleting(false);      // Reset button on error
+       setConfirmDelete(false);   // Reset confirm state
+     }
+   }
+   ```
+
+#### Frontend Fixes (app/page.tsx)
+1. **Made handleDeleteOrder throw on error** so the card can catch it:
+   ```typescript
+   async function handleDeleteOrder(id: string) {
+     if (!window.electron) return;
+     try {
+       const result = await window.electron.deleteOrder(id);
+       if (result.success) {
+         setOrders(prev => prev.filter(o => o.id !== id));
+       } else {
+         alert(result.error || 'Failed to delete order');
+         throw new Error(result.error);
+       }
+     } catch (err) {
+       console.error('Failed to delete order:', err);
+       throw err;
+     }
+   }
+   ```
+
+2. **Now user sees error via alert()** if deletion fails
+
+### Changes Made
+
+| File | Change | Type |
+|------|--------|------|
+| `main/index.ts` | Line 752: Replaced simple delete with transaction cascade delete | Fix |
+| `components/order-card.tsx` | Line 10: Updated `onDelete` type to async | Type Update |
+| `components/order-card.tsx` | Lines 65-79: Updated `handleDelete` to await, catch errors, and reset state | Logic Fix |
+| `app/page.tsx` | Lines 257-270: Added error alert and throw to propagate error up to card | Error Handling |
+
+### Testing the Fix
+
+**Before**: Clicking delete on shipped order → button shows "Deleting..." → freezes forever → no error shown
+
+**After**: 
+1. Clicking delete on shipped order → button shows "Deleting..." 
+2. Backend deletes order + all manufacturing orders + all order items in transaction
+3. Frontend receives success → removes order from list, button reverts to normal
+4. **If error occurs** → button shows error message via alert, resets to "Delete" state, user can retry
+
+### Build & Deployment
+
+- ✅ `npx tsc -p main/tsconfig.json` — TypeScript compiles clean
+- ✅ `npx next build` — Next.js static export compiles clean  
+- ✅ `npx electron-builder --win --dir` — Electron packaged successfully
+- ✅ App launched with fix active
+
+### Status
+- ✅ Order deletion no longer freezes on FK constraint violation
+- ✅ Error messages displayed to user if deletion fails
+- ✅ Button state resets properly on success or error
+- ✅ Transactional cascade delete prevents orphaned manufacturing order records
+- ✅ All TypeScript types updated and validated

@@ -260,9 +260,13 @@ export default function Home() {
       const result = await window.electron.deleteOrder(id);
       if (result.success) {
         setOrders(prev => prev.filter(o => o.id !== id));
+      } else {
+        alert(result.error || 'Failed to delete order');
+        throw new Error(result.error);
       }
     } catch (err) {
       console.error('Failed to delete order:', err);
+      throw err;
     }
   }
 

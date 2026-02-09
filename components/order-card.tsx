@@ -7,7 +7,7 @@ interface OrderCardProps {
   order: OrderResponse;
   onShip?: (id: string) => void;
   onStartProduction?: (id: string) => void;
-  onDelete?: (id: string) => void;
+  onDelete?: (id: string) => Promise<void> | void;
   onClick?: (id: string) => void;
 }
 
@@ -69,7 +69,12 @@ export default function OrderCard({ order, onShip, onStartProduction, onDelete, 
       return;
     }
     setIsDeleting(true);
-    onDelete?.(order.id);
+    try {
+      await onDelete?.(order.id);
+    } catch {
+      setIsDeleting(false);
+      setConfirmDelete(false);
+    }
   }
 
   return (
