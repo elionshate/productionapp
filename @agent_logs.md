@@ -26,7 +26,7 @@
 
 ## 👤 Development Team & Resources
 
-**Lead Role**: Senior Software Architect and Lead DevOps Engineer  
+**Lead Role**: Senior Software Architect, Lead DevOps Engineer and Electron Specialist for a desktop application with a local-first architecture. Responsible for all architectural decisions, package management, and development workflows. 
 **Specialization**: Cross-platform desktop applications (Electron + Next.js)
 
 **Available MCP Servers**:
@@ -1375,3 +1375,612 @@ ipcMain.handle('orders:delete', async (_event, id: string): Promise<IPCResponse<
 - ✅ Button state resets properly on success or error
 - ✅ Transactional cascade delete prevents orphaned manufacturing order records
 - ✅ All TypeScript types updated and validated
+
+---
+
+## 🔄 Major Schema Refactor: Remove Colors Table, Embed Color on Element
+
+### Date: Session spanning multiple iterations
+
+### Problem
+The `Color` model was a separate table requiring a separate dropdown/selection step when adding elements. This added friction and was architecturally unnecessary — color is an intrinsic property of an element, not a separate entity.
+
+### Schema Changes (prisma/schema.prisma)
+- **Deleted**: `Color` model entirely
+- **Modified `Element`**: Added `color String`, `color2 String?`, `isDualColor Boolean @default(false)`
+- **Modified `ProductElement`**: Removed `colorId`. Unique constraint changed from `(productId, elementId, colorId)` → `(productId, elementId)`
+- **Modified `Inventory`**: Removed `colorId`. Unique constraint changed from `(elementId, colorId)` → `elementId` alone
+- **Modified `MaterialRequirement`**: Removed `colorId`. Unique constraint changed from `(manufacturingOrderId, elementId, colorId)` → `(manufacturingOrderId, elementId)`
+- **Modified `InventoryTransaction`**: Removed `colorId`
+- **Migration**: `20260209150819_remove_colors_table_add_element_colors` applied via `prisma migrate reset --force`
+
+### IPC Types (types/ipc.ts) — Full Rewrite
+- **Removed**: `ColorResponse`, `CreateColorDTO`
+- **Updated**: `ElementResponse` now has `color`, `color2`, `isDualColor`
+- **Updated**: `ProductionElementGroup` uses `color`/`color2`/`isDualColor` (not `colorId`/`colorName`)
+- **Updated**: `RecordProductionDTO` — only `orderId`, `elementId`, `amountProduced` (no `colorId`)
+- **Updated**: `CreateInventoryTransactionDTO` — `elementId`, `changeAmount`, `reason` (no `colorId`)
+- **New DTOs**: `UpdateProductDTO`, `CloneProductDTO`, `UpdateElementDTO`
+- **New `ElectronAPI` methods**: `updateProduct`, `cloneProduct`, `removeProductElement`, `updateElement`, `deleteElement`
+- **Removed from `ElectronAPI`**: `getColors`, `createColor`
+- **Updated**: `getInventoryByElement(elementId: string)` — single param, no colorId
+
+### IPC Handlers (main/index.ts) — Comprehensive Update
+- **All handlers updated** to remove `colorId` references
+- Every `materialRequirement.upsert` uses `manufacturingOrderId_elementId` compound key (no `colorId`)
+- Every `inventory.upsert` uses `elementId` unique key (no `colorId`)
+- Element includes now select `color`, `color2`, `isDualColor` fields
+- **Removed handlers**: `colors:getAll`, `colors:create`
+- **New handlers**: `products:update`, `products:clone`, `products:removeElement`, `elements:update`, `elements:delete`
+- `elements:create` now accepts `color`, `color2`, `isDualColor` fields
+- **Dual-color quantity halving**: All 4 material requirement generation locations now apply `Math.ceil(rawQty / 2)` when `pe.element.isDualColor === true`
+
+### Preload Bridge (main/preload.ts)
+- Removed `getColors`, `createColor`
+- Added `updateProduct`, `cloneProduct`, `removeProductElement`, `updateElement`, `deleteElement`
+- `getInventoryByElement` takes single `elementId` param
+
+### UI Components Updated
+
+#### app/page.tsx
+- **Elements tab**: New `NAV_TABS` entry with full CRUD — search, grid of `ElementCard` components with inline editing (color preview swatches, dual-color checkbox, image selection), delete with confirmation, `CreateElementInlineModal`
+- **EditProductModal** & **CloneProductModal**: New modals for product management
+- **Inventory panel**: Uses `item.element?.color` with dual-color support
+- **handleRecordProduction**: Signature is `(orderId, elementId, amount)` — no colorId
+
+#### components/product-card.tsx
+- Added `onEdit`, `onClone`, `onDelete` props
+- Action buttons shown on hover (edit, clone, delete)
+- Color display uses `pe.element?.color` with dual-color `+ ${pe.element.color2}`
+
+#### components/production-order-card.tsx
+- Removed `colorId` from all interfaces and function signatures
+- Color circles use `element.color` with overlapping circles for `element.color2`
+
+#### components/product-elements-modal.tsx — Full Rewrite
+- Removed `ColorResponse` import and `getColors()` call
+- Removed color dropdown entirely — elements already have their color
+- `AddedElement` interface uses `color`, `color2`, `isDualColor` (no `colorId`/`colorName`)
+- Duplicate check is now `elementId`-only (unique constraint is `productId + elementId`)
+- Added `handleRemoveElement` with `removeProductElement` IPC call
+- Loads existing product elements on open
+- Shows color preview swatches for selected element
+
+#### components/create-element-modal.tsx — Updated
+- Removed `ColorResponse`, `getColors`, `createColor` references
+- `onCreated` callback returns `color`, `color2`, `isDualColor` (not `colorId`/`colorName`)
+- Added dual-color checkbox and second `ColorPicker` when enabled
+- `createElement` call includes `color`, `color2`, `isDualColor` fields
+
+### Dual-Color Quantity Halving Logic
+When `pe.element.isDualColor === true`, the quantity needed is halved using `Math.ceil(rawQty / 2)` — each dual-color piece counts as 2 units. This is applied in:
+1. `orders:create` handler (material requirement generation)
+2. `orders:update` handler (material requirement generation)
+3. `requirements:generate` handler
+4. `production:getInProduction` retroactive manufacturing order generation
+
+### Build Verification
+- ✅ `npx prisma generate` — Prisma client regenerated successfully
+- ✅ `npx tsc --noEmit` — Zero TypeScript errors
+- ✅ All `colorId`, `ColorResponse`, `getColors`, `createColor` references eliminated from source code
+
+---
+
+## 🔄 Session: 2026-02-09 — Element Picker Redesign & Element Category Filter
+
+### Overview
+Two major UX improvements: (1) Complete redesign of the product element picker from dropdown to visual grid with grouping and multi-select, (2) Category filter tabs for the Elements tab matching the Products tab pattern.
+
+### components/product-elements-modal.tsx — Complete Rewrite (~280 lines)
+**Previous**: Dropdown-based single element selection (add one at a time)
+**New**: Visual grid with grouping, multi-select, and diff-based save
+
+- **Grouped by `uniqueName`**: Elements organized into collapsible groups by their name
+- **Visual card grid**: 2-3 column responsive layout with element images, color swatches, material info
+- **Multi-select**: Click cards to toggle selection with blue checkmark indicator
+- **Inline quantity input**: Appears on selected cards for entering quantity needed
+- **Search filter**: Filters by name, color, or material
+- **Selected count badge**: Shows count of currently selected elements in header
+- **Diff-based save**: Compares existing ProductElements vs selected state, then:
+  - Removes deselected elements via `removeProductElement` IPC
+  - Adds new selections via `addProductElement` IPC
+  - Re-adds changed quantities (remove + add — no direct update endpoint)
+- **Selection state**: Uses `Map<string, SelectedElement>` for O(1) lookups
+- **Pre-loads existing**: On open, fetches `getProductById` and populates selections from existing `productElements`
+
+### app/page.tsx — EditProductModal + Element Category Filter
+
+#### EditProductModal Updates
+- Added `onEditElements: () => void` callback prop
+- Added "Edit Elements (N)" button between image selector and save/cancel buttons
+  - Shows cube icon + current element count
+  - Styled as outline button with blue accent
+- Rendering wired: `onEditElements` closes edit modal and opens `ProductElementsModal` with existing selections pre-loaded
+
+#### Elements Tab — Name-Based Category Filter
+**Previous**: Only search input, no category tabs
+**New**: Category filter tabs + search, matching Products tab UX pattern
+
+- **New state**: `activeElementCategory` (defaults to `'All'`)
+- **Derived categories**: `elementCategories` — `useMemo` extracts unique `uniqueName` values from all elements, sorted, prepended with `'All'`
+- **Updated `filteredElements`**: Now respects both `activeElementCategory` and `elementSearch`
+  - First filters by category (element name) if not `'All'`
+  - Then filters by search query across `uniqueName`, `color`, `material`
+- **Filter tabs UI**: Row of rounded pill buttons matching Products tab style (blue active, zinc inactive)
+- **Counter**: Shows "X of Y elements" between filter tabs and search bar
+- **Empty state**: Updated messaging to reference "category or search term"
+
+### Verified
+- ✅ `npx tsc --noEmit` — Zero TypeScript errors after all changes
+
+---
+
+## 🔄 Session: 2026-02-09 — Product Label, Production Overflow, Inventory Delete
+
+### Overview
+Three features: (1) Product label field added to DB/UI, (2) Production can exceed required amount with overflow going to inventory, (3) Inventory items can be deleted for testing.
+
+### 1. Product Label Field
+
+#### Database (prisma/schema.prisma)
+- Added `label String @default("")` to `Product` model
+- Migration: `20260209160506_add_product_label`
+- Prisma client regenerated
+
+#### Types (types/ipc.ts)
+- `CreateProductDTO`: Added optional `label?: string`
+- `UpdateProductDTO`: Added optional `label?: string`
+- `ProductResponse`: Added `label: string`
+
+#### IPC Handlers (main/index.ts)
+- `products:create`: Writes `label: data.label ?? ''`
+- `products:update`: Passes `label: data.label` to Prisma update
+- `products:clone`: Copies `label` from source product
+
+#### UI — Product Card (components/product-card.tsx)
+- Displays label below serial number in blue text (`text-blue-600`) when present
+- Truncates with ellipsis if too long
+
+#### UI — Create Product (components/create-product-modal.tsx)
+- Added `label` state field
+- New text input below serial number: "Label" (optional), placeholder "e.g. Premium Red Bucket"
+- Label included in `createProduct()` call and `resetForm()`
+
+#### UI — Edit Product (app/page.tsx — EditProductModal)
+- Added `label` to form state, initialized from `product.label`
+- New text input labeled "Label (optional)" between serial number and category
+- Label included in `updateProduct()` call
+
+### 2. Production Overflow to Inventory
+
+#### Backend (main/index.ts — production:recordProduction)
+- Backend already added full `amountProduced` to inventory regardless of cap
+- Material requirements still only filled up to `quantityNeeded` (no over-tracking)
+- `remaining` return value can now go negative (overflow indicator)
+
+#### UI — Production Order Card (components/production-order-card.tsx)
+- **Removed** validation: `if (amount > remaining)` error message — users can now enter any positive amount
+- **Removed** `max={remaining}` attribute from the quantity input
+- Remaining display uses `Math.max(0, remaining)` to avoid showing negative numbers
+- `isDone` check (`remaining <= 0`) still works — element shows "Done" when target met/exceeded
+
+### 3. Inventory Delete (Testing Feature)
+
+#### IPC Handler (main/index.ts — inventory:delete)
+- New handler: `inventory:delete`
+- Uses transaction to delete both the inventory record and all related `inventoryTransaction` records for that element
+- Returns `{ id }` on success
+
+#### Preload Bridge (main/preload.ts)
+- Added `deleteInventory: (id) => ipcRenderer.invoke('inventory:delete', id)`
+
+#### Types (types/ipc.ts — ElectronAPI)
+- Added `deleteInventory: (id: string) => Promise<IPCResponse<{ id: string }>>`
+
+#### UI — Inventory Tab (app/page.tsx)
+- Added `handleDeleteInventory(id)` function — calls `deleteInventory` IPC and removes from state
+- Each inventory item row now has a trash icon button (right side)
+- Click shows `confirm()` dialog before deleting
+- Button styled with subtle red hover state
+
+### Verified
+- ✅ `npx prisma migrate dev` — Migration applied successfully
+- ✅ `npx prisma generate` — Client regenerated
+- ✅ `npx tsc --noEmit` — Zero TypeScript errors
+
+---
+
+#### 2026-02-09 - Shipped Date, Auto-Remove Completed Production, Aggregated Totals Panel, Print Views
+
+**Context**: User requested 4 production/order workflow improvements: (1) Log shipping date when order ships, (2) Auto-remove completed orders from production window, (3) Aggregated totals panel on right side of production screen, (4) Printable production views with products as columns and colors as rows.
+
+##### 1. Shipped Date Logging
+
+**Schema Change** (prisma/schema.prisma):
+- Added `shippedAt DateTime? @map("shipped_at")` to Order model
+- Migration: `20260209163218_add_shipped_at`
+
+**Types** (types/ipc.ts):
+- `OrderResponse` — added `shippedAt: Date | null`
+- `UpdateOrderDTO` — added `shippedAt?: Date`
+
+**Backend** (main/index.ts — `orders:update`):
+- When `data.status === 'shipped'`, auto-sets `shippedAt: new Date()` in the Prisma update
+
+**Frontend** (app/page.tsx — `handleShipOrder`):
+- Local state update now includes `shippedAt: new Date()`
+
+**UI** (components/order-card.tsx):
+- Shipped indicator now shows date: `Shipped DD/MM/YY` when `shippedAt` is available
+
+##### 2. Auto-Remove Completed Production Orders
+
+**Backend** (main/index.ts — `production:recordProduction`):
+- After recording production, queries ALL material requirements for the order
+- Returns `orderComplete: boolean` alongside `remaining` — true when all requirements have `quantityProduced >= quantityNeeded`
+
+**Frontend** (app/page.tsx — `handleRecordProduction`):
+- Checks `result.data.orderComplete` after recording
+- If true, removes the order from `productionOrders` state: `setProductionOrders(prev => prev.filter(o => o.orderId !== orderId))`
+
+##### 3. Aggregated Totals Panel (Production Tab — Right Side)
+
+**Layout Change** (app/page.tsx — Production tab):
+- Production tab now uses a two-panel layout (flex, border separator) similar to the Inventory tab
+- Left panel: Production order cards (existing, unchanged)
+- Right panel (380px): Aggregated totals
+
+**Aggregated Totals Logic**:
+- Iterates all `productionOrders` and all `elements` within each
+- Groups by `elementName + color + color2` key
+- Sums `totalNeeded`, `totalProduced`, `remaining`, `totalWeightGrams`
+- Sorted alphabetically by element name then color
+- Each item shows: name, color circles, need/remaining counts, progress bar
+- Green styling when complete, summary footer with counts
+
+##### 4. Print Views
+
+**Print Function** (app/page.tsx — `handlePrintProduction(mode: 'orders' | 'totals')`):
+- **'orders' mode**: For each production order, generates a table where:
+  - Columns = unique element names (product component names)
+  - Rows = unique colors
+  - Cell values = remaining quantity (empty if no element with that name+color combo)
+  - Header shows order number, client name, date, notes
+- **'totals' mode**: Same table layout but aggregated across all orders
+  - Header shows total order count and date
+- Opens a new print window with styled HTML table and calls `window.print()`
+
+**Print Buttons**:
+- Left panel header: "Print" button → triggers `handlePrintProduction('orders')`
+- Right panel header: "Print" button → triggers `handlePrintProduction('totals')`
+- Both buttons only visible when `productionOrders.length > 0`
+
+**Print CSS** (app/globals.css):
+- Added `@media print` block with: visibility hiding, `.print-area` positioning, `.no-print` hiding, `.print-table` styles (borders, padding, header background)
+
+### Files Modified
+- `prisma/schema.prisma` — Added `shippedAt` field to Order
+- `types/ipc.ts` — Updated `OrderResponse` and `UpdateOrderDTO`
+- `main/index.ts` — Updated `orders:update` and `production:recordProduction` handlers
+- `app/page.tsx` — Updated `handleShipOrder`, `handleRecordProduction`, Production tab layout, added `handlePrintProduction`
+- `components/order-card.tsx` — Shipped date display
+- `app/globals.css` — Print styles
+
+### Verified
+- ✅ `npx prisma migrate dev --name add_shipped_at` — Migration applied successfully
+- ✅ `npx tsc --noEmit` — Zero TypeScript errors
+
+---
+
+#### 2026-02-09 — Print View UX Improvement: Added Print Button to Browser Window
+
+**Problem**: Print window opened with styled content but had no obvious way for users to print. Users had to manually open the browser's print menu (Ctrl+P), which was not intuitive.
+
+**Solution**: Enhanced print window with dedicated Print button and clear instructions.
+
+#### Changes (app/page.tsx — `handlePrintProduction` function)
+
+**Before**:
+- Print window opened with HTML table only
+- Called `printWindow.print()` immediately (print dialog appeared automatically)
+- Minimal styling, user had no control
+
+**After**:
+- **Sticky header** with "Production Print Preview" title and instructions
+- **Prominent Print button** ("🖨️ Print") that calls `window.print()` on click
+- **Instructions text**: "Click 'Print to PDF' or 'Print to Printer' below"
+- **Professional styling**:
+  - Header has blue button, sticky positioning at top
+  - Content has white background with proper padding
+  - Print media query hides the header when printing (clean output)
+  - Table styling preserved (borders, headers with gray background)
+
+**HTML Structure**:
+```html
+<div class="header">
+  <div>
+    <h3>Production Print Preview</h3>
+    <p>Click "Print to PDF" or "Print to Printer" below</p>
+  </div>
+  <button class="print-btn" onclick="window.print()">🖨️ Print</button>
+</div>
+<div class="content">
+  [table with production/totals data]
+</div>
+```
+
+**Styling Details**:
+- `.header`: `position: sticky; top: 0;` — button always visible while scrolling
+- `.print-btn`: Blue background (`#2563eb`) with white text, 14px font, bold, rounded
+- `:hover`: Darker blue (`#1d4ed8`), `:active`: Scale down animation for feedback
+- `@media print`: Header hidden, body background set to white (print-friendly)
+
+#### UX Flow Now
+1. User clicks "Print" button on production panel → print window opens
+2. Print window displays:
+   - Header with "Production Print Preview" title + instructions
+   - Blue "Print" button (prominent, easy to find)
+   - Content below (table with all orders/totals)
+3. User clicks blue "Print" button → browser's native print dialog opens
+4. User selects printer or "Print to PDF" → document prints/exports
+5. **No automatic print dialog** — user has full control and can preview before committing
+
+**Benefits**:
+- ✅ Intuitive call-to-action (blue button is obviously clickable)
+- ✅ Instructions guide users on next step
+- ✅ Users can scroll and review data before printing
+- ✅ No unexpected print dialogs popping up
+- ✅ Works with any printer or PDF printer (including "Print to PDF" in browsers)
+- ✅ Professional appearance with sticky header
+
+**Tested**: Production orders → Print (order) → button visible, printable. Production orders → Print (totals) → button visible, printable.
+
+### Verified
+- ✅ `npx tsc --noEmit` — Zero TypeScript errors
+- ✅ Print buttons functional in both "orders" and "totals" modes
+- ✅ Print window opens with header and content displayed, printing to PDF works correctly
+
+---
+
+## Session: Element Label Field + Production Label Grouping + Print Landscape A4
+
+### Element Label Field
+
+**Schema Change**: Added `label String @default("") @map("label")` to `Element` model in `prisma/schema.prisma`.
+
+**Migration**: `add_element_label` — adds `label` column (TEXT, default empty string) to `Element` table.
+
+**Types Updated** (`types/ipc.ts`):
+- `ElementResponse`: Added `label: string`
+- `CreateElementDTO`: Added `label?: string`
+- `UpdateElementDTO`: Added `label?: string`
+- `ProductionElementGroup`: Added `elementLabel: string`
+
+**Backend** (`main/index.ts`):
+- `elements:create` handler: Sets `label: data.label ?? ''` in Prisma create
+- `elements:update` handler: Sets `label: data.label` in Prisma update
+- `production:getInProduction` handler: Includes `elementLabel: req.element?.label ?? ''` in each `ProductionElementGroup`
+
+**Prisma Client**: Regenerated after migration to include `label` in generated types.
+
+### Production Label Grouping (Visual, NOT a filter)
+
+Elements with labels get their own visual section in both production order cards and the aggregated totals panel.
+
+#### Production Order Card (`components/production-order-card.tsx`)
+
+**Rendering Logic**:
+1. Elements split into `unlabeled` (empty label) and `labeled` arrays
+2. Unlabeled elements rendered first in a flat list (existing behavior)
+3. Labeled elements grouped by label into a `Map<string, ProductionElementGroup[]>`
+4. Each label group gets a purple header divider: `🏷 {label}` with a horizontal line
+5. Each `ProductionElementRow` shows a small purple badge `🏷 {label}` next to color circles if the element has a label
+
+**Visual Design**:
+- Label divider: Purple text (`#7c3aed`), 11px italic, with flex layout + `<hr>` line
+- Label badge on element rows: Purple background with white text, 9px, border-radius 3px
+
+#### Aggregated Totals Panel (right side of Production tab in `app/page.tsx`)
+
+**Grouping Key**: Changed from `elementName|color|color2` to `elementName|color|color2|elementLabel`.
+
+**Rendering Logic**:
+1. Grouped items split into `unlabeledItems` (empty elementLabel) and `labeledItems`
+2. Unlabeled items rendered first using `renderItem()` helper
+3. Labeled items grouped by label into a Map, each group gets a purple label header divider
+4. Each item card shows a purple label badge if `elementLabel` is non-empty
+
+**Helper Function**: `renderItem(item, idx)` extracted as reusable renderer for both unlabeled and labeled sections.
+
+### Print Function Rewrite (`handlePrintProduction` in `app/page.tsx`)
+
+**Landscape A4**:
+- Added `@page { size: A4 landscape; margin: 10mm; }` CSS rule
+- Window opens at 1100px width (was 900px) to reflect landscape orientation
+- Print preview header shows "Landscape A4 · Click the button to print"
+
+**Label Sections in Print**:
+- Both 'orders' and 'totals' print modes split elements into unlabeled (main table) + labeled (separate table per label)
+- Each label group gets an `<h4>🏷 {label}</h4>` header followed by its own `<table>`
+- Unlabeled elements rendered first, then each label group
+
+**Print Table Columns** (totals mode): Element, Label, Color, Color2, Needed, Produced, Remaining
+
+### Create Element Modal (`components/create-element-modal.tsx`)
+
+**Label Input**: Added optional text input for `label` field in the create/edit element modal form.
+
+### Verified
+- ✅ `npx tsc --noEmit` — Zero TypeScript errors
+- ✅ Prisma client regenerated with `label` field on Element
+- ✅ Production order cards: unlabeled elements first, then grouped labeled elements with purple dividers
+- ✅ Aggregated totals: label-aware grouping with visual label sections
+- ✅ Print function: A4 landscape with label sections in both orders/totals modes
+
+---
+
+## Session: Dynamic Responsive Print Layout
+
+### Problem
+Print tables used fixed column widths, static font sizes, and no content-aware sizing. Long element names or many columns would overflow or misalign on A4 landscape paper.
+
+### Solution: `buildPivotTable()` Helper Function
+
+Extracted a reusable `buildPivotTable()` function inside `handlePrintProduction` that generates a fully dynamic pivot table (Color rows × Element Name columns) with:
+
+**Dynamic Font Scaling** (based on column count):
+- ≤5 columns → 13px font, 6px 10px padding
+- ≤8 columns → 11px font, 4px 7px padding
+- ≤12 columns → 9px font, 3px 5px padding
+- >12 columns → 7px font, 2px 3px padding
+- Additional -2px reduction if longest name exceeds 18 characters
+
+**Dynamic Column Widths**:
+- Uses `table-layout: fixed` with explicit `<colgroup>` percentages
+- Color column: proportionally wider (12%–25% depending on total columns)
+- Data columns: remaining width distributed evenly
+- `word-break: break-word` + `overflow-wrap: break-word` on all cells to handle long text
+
+**Column Totals Row**: Each table now includes a bold "Total" row at the bottom summing remaining quantities per element.
+
+**Page Break Handling**:
+- `.order-block { page-break-inside: avoid; break-inside: avoid; }` keeps each order on one page
+- `tr { page-break-inside: avoid; }` prevents row splitting
+- `thead { display: table-header-group; }` repeats headers on multi-page tables
+
+**Print Color Fidelity**: Added `-webkit-print-color-adjust: exact; print-color-adjust: exact;` to preserve background colors in print.
+
+**Reduced Margins**: `@page { margin: 8mm }` (was 10mm) to maximize printable area.
+
+### Files Modified
+- `app/page.tsx`: Replaced entire `handlePrintProduction` function (~200 lines) with dynamic pivot table builder
+
+### Verified
+- ✅ `npx tsc --noEmit` — Zero TypeScript errors
+- ✅ Tables dynamically scale font size and padding based on column count
+- ✅ Long element names wrap within cells instead of overflowing
+- ✅ Column proportions adjust automatically to data content
+- ✅ Page breaks prevent order blocks from splitting across pages
+
+---
+
+## Session: Element Labels, Responsive Print, UI Enhancement & Per-Order Printing
+
+### 1. Prisma Client Regeneration & Label Field Fix
+
+**Problem**: TypeScript compilation errors at `main/index.ts` lines 1675 and 1697 — Prisma generated types didn't include `label` field on Element after migration.
+
+**Solution**: Ran `npx prisma generate` to regenerate client types, then removed `as any` cast in `production:getInProduction` handler.
+
+**Result**: Full TypeScript type safety for Element.label across all handlers.
+
+### 2. Dynamic Responsive Print Layout
+
+**Enhancement**: Replaced static print tables with context-aware sizing via `buildPivotTable()` helper function.
+
+**Dynamic Sizing Logic**:
+- **Font scaling by column count**: 13px (≤5 cols) → 11px (≤8) → 9px (≤12) → 7px (>12), with additional -2px if element names exceed 18 chars
+- **Column proportions**: Color column scales 12–25% based on total columns; data columns split remaining width evenly
+- **Text wrapping**: `word-break: break-word` + `overflow-wrap: break-word` on all cells
+- **Column totals row**: Bold "Total" row sums remaining quantities per element
+- **Page breaks**: `page-break-inside: avoid` on order blocks and rows to prevent splitting across pages
+- **Print fidelity**: `-webkit-print-color-adjust: exact` preserves backgrounds; margins reduced to 8mm
+
+**Files**: `app/page.tsx` — `handlePrintProduction` function
+
+**Benefit**: Prints correctly on A4 landscape regardless of element name lengths or column count.
+
+### 3. Element Label Field in Forms
+
+**Added to three locations**:
+
+**a) CreateElementModal** (`components/create-element-modal.tsx`):
+- New state: `label`
+- New form input with purple focus border (`focus:ring-purple-500/20`)
+- Passed to `window.electron.createElement()` as `label: label.trim() || ''`
+- Updated `onCreated` callback to include `label` in response
+
+**b) CreateElementInlineModal** (`app/page.tsx`):
+- New form field between name and color
+- Passed to `createElement()` with `label: form.label || ''`
+
+**c) ElementCard inline edit** (`app/page.tsx`):
+- New edit form input for label
+- Saved via `updateElement()` with `label: editForm.label || ''`
+- Display shows purple badge `🏷 {label}` when set
+
+**Files Modified**: `components/create-element-modal.tsx`, `app/page.tsx`
+
+### 4. Label Styling Enhancement (Larger, Bold, Uppercase)
+
+Updated label display across all three windows to be more prominent:
+
+**Production Order Card** (`components/production-order-card.tsx`):
+- Label group headers: `text-xs font-semibold` → `text-sm font-bold uppercase`
+- Element badges: `text-[10px]` → `text-xs` with `uppercase`
+
+**Aggregated Totals Panel** (`app/page.tsx`):
+- Label group headers: `text-xs font-semibold` → `text-sm font-bold uppercase`
+- Item badges: `text-[10px]` → `text-xs` with `uppercase`
+
+**Elements Window** (`app/page.tsx`):
+- Element card labels: `text-[10px] font-medium` → `text-sm font-bold uppercase`
+
+**Products Window** (`components/product-card.tsx`):
+- Product labels: `text-sm font-medium` → `text-base font-bold uppercase`
+
+**Print Views** (`app/page.tsx`):
+- Inline HTML labels: Added `style="font-size:14px;font-weight:bold;text-transform:uppercase;"` to label headers
+
+**Visual Result**: Labels are now 1.3–1.5x larger, all bold weight, and auto-capitalized (CSS `text-transform: uppercase`).
+
+**Files Modified**: `components/production-order-card.tsx`, `components/product-card.tsx`, `app/page.tsx`
+
+### 5. Per-Order Print Functionality
+
+**Problem**: Print button printed ALL production orders at once; user needed per-order printing.
+
+**Solution**: Added optional `orderId` parameter to `handlePrintProduction()` and per-order print button to each card.
+
+**Changes**:
+
+**a) handlePrintProduction** (`app/page.tsx`):
+- Signature: `handlePrintProduction(mode: 'orders' | 'totals', orderId?: string)`
+- Logic: When `orderId` is provided, filters `productionOrders` to only that order before rendering
+- Maintains all dynamic table sizing and responsive behavior for single orders
+
+**b) ProductionOrderCard** (`components/production-order-card.tsx`):
+- New interface prop: `onPrint?: (orderId: string) => void`
+- New print button in header (printer icon 🖨️) next to "In Production" badge
+- Hidden if `onPrint` is not provided (for backward compatibility)
+- Styled as small transparent button with hover effect
+
+**c) Production Orders Renderer** (`app/page.tsx`):
+- Connects `onPrint={(id) => handlePrintProduction('orders', id)}` to each card
+- Toolbar "Print" button still calls `handlePrintProduction('orders')` to print all orders
+
+**Print Flow**:
+- **All orders**: Click toolbar "Print" → all orders in table
+- **Single order**: Click 🖨️ on order card → that order only
+
+**Files Modified**: `app/page.tsx`, `components/production-order-card.tsx`
+
+**Benefit**: Users can now print specific orders without the entire production queue.
+
+### Print Window UX Note
+
+The print preview window in Electron displays "This app doesn't support print preview" — this is a native Electron message and is harmless. Users can still:
+- ✅ Print to physical printer
+- ✅ Print to PDF (via "Print to PDF" printer option)
+- ✅ Use Ctrl+P as alternative to Print button
+
+The warning does not block printing functionality.
+
+### Verified All Changes
+- ✅ `npx tsc --noEmit` — Zero TypeScript errors
+- ✅ Prisma client regenerated with full `label` field support
+- ✅ Element forms show label input fields
+- ✅ Labels display larger, bold, and uppercase across all windows
+- ✅ Per-order print button visible and functional on each production card
+- ✅ Print layout scales responsively to content
+- ✅ All existing logic unchanged — only UI and print enhancements added

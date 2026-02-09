@@ -24,3 +24,62 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* ============================================================================
+   PRINT STYLES
+   ============================================================================ */
+@media print {
+  /* Hide everything by default */
+  body * {
+    visibility: hidden;
+  }
+
+  /* Show only the print area and its children */
+  .print-area,
+  .print-area * {
+    visibility: visible !important;
+  }
+
+  .print-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    background: white !important;
+    color: black !important;
+    padding: 1rem;
+  }
+
+  /* Hide elements with no-print class */
+  .no-print,
+  .no-print * {
+    display: none !important;
+  }
+
+  /* Print table styles */
+  .print-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+  }
+
+  .print-table th,
+  .print-table td {
+    border: 1px solid #333;
+    padding: 4px 8px;
+    text-align: center;
+  }
+
+  .print-table th {
+    background-color: #e5e5e5 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    font-weight: bold;
+  }
+
+  .print-table td.has-value {
+    background-color: #f5f5f5 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

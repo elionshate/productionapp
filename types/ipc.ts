@@ -46,6 +46,7 @@ export interface CreateOrderDTO {
 export interface UpdateOrderDTO {
   status?: 'pending' | 'in_production' | 'shipped';
   notes?: string;
+  shippedAt?: Date;
 }
 
 export interface CreateManufacturingOrderDTO {
@@ -60,7 +61,6 @@ export interface UpdateManufacturingOrderDTO {
 
 export interface CreateInventoryTransactionDTO {
   elementId: string;
-  colorId: string;
   changeAmount: number;
   reason: string;
 }
@@ -68,7 +68,6 @@ export interface CreateInventoryTransactionDTO {
 export interface RecordProductionDTO {
   orderId: string;
   elementId: string;
-  colorId: string;
   amountProduced: number;
 }
 
@@ -78,7 +77,7 @@ export interface RecordAssemblyDTO {
   boxesAssembled: number;
 }
 
-// Stock overview per order — shows product-level completion (n/m)
+// Stock overview per order
 export interface StockOrderData {
   orderId: string;
   orderNumber: number;
@@ -94,11 +93,11 @@ export interface StockProductEntry {
   imageUrl: string | null;
   category: string;
   boxesNeeded: number;
-  boxesReady: number;  // from ProductStock or OrderItem tracking
+  boxesReady: number;
   unitsPerBox: number;
 }
 
-// Assembly view — orders in production with product box counts
+// Assembly view
 export interface AssemblyOrderData {
   orderId: string;
   orderNumber: number;
@@ -120,12 +119,14 @@ export interface AssemblyProductEntry {
   unitsPerBox: number;
 }
 
-// Aggregated element data for the Production tab (grouped by element+color per order)
+// Aggregated element data for Production tab (grouped by element per order)
 export interface ProductionElementGroup {
   elementId: string;
-  colorId: string;
   elementName: string;
-  colorName: string;
+  elementLabel: string;
+  color: string;
+  color2: string | null;
+  isDualColor: boolean;
   material: string;
   imageUrl: string | null;
   weightPerUnit: number;
@@ -147,31 +148,55 @@ export interface ProductionOrderData {
 export interface CreateProductDTO {
   serialNumber: string;
   category: string;
-  unitsPerAssembly?: number; // Defaults to 1 (product is a unit itself)
+  label?: string;
+  unitsPerAssembly?: number;
   unitsPerBox: number;
-  imageUrl: string; // Base64 data URL from file picker — mandatory
+  imageUrl: string;
+}
+
+export interface UpdateProductDTO {
+  serialNumber?: string;
+  category?: string;
+  label?: string;
+  unitsPerBox?: number;
+  imageUrl?: string;
+}
+
+export interface CloneProductDTO {
+  sourceProductId: string;
+  newSerialNumber: string;
 }
 
 export interface CreateProductElementDTO {
   productId: string;
   elementId: string;
-  colorId: string;
   quantityNeeded: number;
-}
-
-export interface CreateColorDTO {
-  colorName: string;
 }
 
 export interface CreateElementDTO {
   uniqueName: string;
+  label?: string;
+  color: string;
+  color2?: string | null;
+  isDualColor?: boolean;
   material: string;
   weightGrams: number;
   imageUrl?: string;
 }
 
+export interface UpdateElementDTO {
+  uniqueName?: string;
+  label?: string;
+  color?: string;
+  color2?: string | null;
+  isDualColor?: boolean;
+  material?: string;
+  weightGrams?: number;
+  imageUrl?: string | null;
+}
+
 // ============================================================================
-// RESPONSE TYPES (Matches Prisma Client Output)
+// RESPONSE TYPES
 // ============================================================================
 
 export interface OrderResponse {
@@ -179,6 +204,7 @@ export interface OrderResponse {
   orderNumber: number;
   clientName: string;
   createdAt: Date;
+  shippedAt: Date | null;
   status: string;
   notes: string | null;
   orderItems?: OrderItemResponse[];
@@ -198,6 +224,7 @@ export interface ProductResponse {
   id: string;
   serialNumber: string;
   category: string;
+  label: string;
   unitsPerAssembly: number;
   unitsPerBox: number;
   imageUrl: string | null;
@@ -209,10 +236,8 @@ export interface ProductElementResponse {
   id: string;
   productId: string;
   elementId: string;
-  colorId: string;
   quantityNeeded: number;
   element?: ElementResponse;
-  color?: ColorResponse;
 }
 
 export interface ManufacturingOrderResponse {
@@ -231,37 +256,31 @@ export interface MaterialRequirementResponse {
   id: string;
   manufacturingOrderId: string;
   elementId: string;
-  colorId: string;
   quantityNeeded: number;
   quantityProduced: number;
   totalWeightGrams: number;
   element?: ElementResponse;
-  color?: ColorResponse;
 }
 
 export interface ElementResponse {
   id: string;
   uniqueName: string;
+  label: string;
+  color: string;
+  color2: string | null;
+  isDualColor: boolean;
   material: string;
   weightGrams: number;
   imageUrl: string | null;
   createdAt: Date;
 }
 
-export interface ColorResponse {
-  id: string;
-  colorName: string;
-  createdAt: Date;
-}
-
 export interface InventoryResponse {
   id: string;
   elementId: string;
-  colorId: string;
   totalAmount: number;
   updatedAt: Date;
   element?: ElementResponse;
-  color?: ColorResponse;
 }
 
 export interface ProductStockResponse {
@@ -275,12 +294,10 @@ export interface ProductStockResponse {
 export interface InventoryTransactionResponse {
   id: string;
   elementId: string | null;
-  colorId: string | null;
   changeAmount: number;
   reason: string;
   createdAt: Date;
   element?: ElementResponse;
-  color?: ColorResponse;
 }
 
 // ============================================================================
@@ -323,14 +340,14 @@ export interface ElectronAPI {
   createManufacturingOrder: (data: CreateManufacturingOrderDTO) => Promise<IPCResponse<ManufacturingOrderResponse>>;
   updateManufacturingOrder: (id: string, data: UpdateManufacturingOrderDTO) => Promise<IPCResponse<ManufacturingOrderResponse>>;
   deleteManufacturingOrder: (id: string) => Promise<IPCResponse<{ id: string }>>;
-  
-  // ========== MATERIAL REQUIREMENTS (Pick Lists) ==========
+
+  // ========== MATERIAL REQUIREMENTS ==========
   getMaterialRequirements: (manufacturingOrderId: string) => Promise<IPCResponse<MaterialRequirementResponse[]>>;
   generateMaterialRequirements: (manufacturingOrderId: string) => Promise<IPCResponse<MaterialRequirementResponse[]>>;
 
   // ========== PRODUCTION ==========
   getProductionOrders: () => Promise<IPCResponse<ProductionOrderData[]>>;
-  recordProduction: (data: RecordProductionDTO) => Promise<IPCResponse<{ remaining: number }>>;
+  recordProduction: (data: RecordProductionDTO) => Promise<IPCResponse<{ remaining: number; orderComplete: boolean }>>;
 
   // ========== ASSEMBLY ==========
   getAssemblyOrders: () => Promise<IPCResponse<AssemblyOrderData[]>>;
@@ -341,28 +358,30 @@ export interface ElectronAPI {
 
   // ========== INVENTORY ==========
   getInventory: () => Promise<IPCResponse<InventoryResponse[]>>;
-  getInventoryByElement: (elementId: string, colorId: string) => Promise<IPCResponse<InventoryResponse | null>>;
+  getInventoryByElement: (elementId: string) => Promise<IPCResponse<InventoryResponse | null>>;
   adjustInventory: (data: CreateInventoryTransactionDTO) => Promise<IPCResponse<InventoryResponse>>;
+  deleteInventory: (id: string) => Promise<IPCResponse<{ id: string }>>;
   getInventoryTransactions: () => Promise<IPCResponse<InventoryTransactionResponse[]>>;
 
   // ========== PRODUCTS ==========
   getProducts: () => Promise<IPCResponse<ProductResponse[]>>;
   getProductById: (id: string) => Promise<IPCResponse<ProductResponse | null>>;
   createProduct: (data: CreateProductDTO) => Promise<IPCResponse<ProductResponse>>;
+  updateProduct: (id: string, data: UpdateProductDTO) => Promise<IPCResponse<ProductResponse>>;
+  cloneProduct: (data: CloneProductDTO) => Promise<IPCResponse<ProductResponse>>;
   addProductElement: (data: CreateProductElementDTO) => Promise<IPCResponse<ProductElementResponse>>;
+  removeProductElement: (id: string) => Promise<IPCResponse<{ id: string }>>;
   deleteProduct: (id: string) => Promise<IPCResponse<{ id: string }>>;
 
   // ========== PRODUCT STOCK ==========
   getProductStock: () => Promise<IPCResponse<ProductStockResponse[]>>;
   getProductStockById: (productId: string) => Promise<IPCResponse<ProductStockResponse | null>>;
 
-  // ========== COLORS ==========
-  getColors: () => Promise<IPCResponse<ColorResponse[]>>;
-  createColor: (data: CreateColorDTO) => Promise<IPCResponse<ColorResponse>>;
-
   // ========== ELEMENTS ==========
   getElements: () => Promise<IPCResponse<ElementResponse[]>>;
   createElement: (data: CreateElementDTO) => Promise<IPCResponse<ElementResponse>>;
+  updateElement: (id: string, data: UpdateElementDTO) => Promise<IPCResponse<ElementResponse>>;
+  deleteElement: (id: string) => Promise<IPCResponse<{ id: string }>>;
 
   // ========== DIALOG ==========
   selectImage: () => Promise<IPCResponse<string | null>>;

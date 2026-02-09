@@ -14,8 +14,10 @@ import type {
   UpdateManufacturingOrderDTO,
   CreateInventoryTransactionDTO,
   CreateProductDTO,
-  CreateColorDTO,
+  UpdateProductDTO,
+  CloneProductDTO,
   CreateElementDTO,
+  UpdateElementDTO,
   RecordProductionDTO,
   IPCResponse,
 } from '../types/ipc';
@@ -96,16 +98,12 @@ CREATE TABLE IF NOT EXISTS "users" (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS "users_username_key" ON "users"("username");
 
-CREATE TABLE IF NOT EXISTS "colors" (
-    "id" TEXT NOT NULL PRIMARY KEY,
-    "color_name" TEXT NOT NULL,
-    "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-CREATE UNIQUE INDEX IF NOT EXISTS "colors_color_name_key" ON "colors"("color_name");
-
 CREATE TABLE IF NOT EXISTS "elements" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "unique_name" TEXT NOT NULL,
+    "color" TEXT NOT NULL,
+    "color_2" TEXT,
+    "is_dual_color" BOOLEAN NOT NULL DEFAULT 0,
     "material" TEXT NOT NULL,
     "weight_grams" DECIMAL NOT NULL DEFAULT 0,
     "image_url" TEXT,
@@ -127,25 +125,20 @@ CREATE TABLE IF NOT EXISTS "product_elements" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "product_id" TEXT NOT NULL,
     "element_id" TEXT NOT NULL,
-    "color_id" TEXT NOT NULL,
     "quantity_needed" INTEGER NOT NULL DEFAULT 1,
     "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT "product_elements_product_id_fkey" FOREIGN KEY ("product_id") REFERENCES "products" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
-    CONSTRAINT "product_elements_element_id_fkey" FOREIGN KEY ("element_id") REFERENCES "elements" ("id") ON DELETE RESTRICT ON UPDATE CASCADE,
-    CONSTRAINT "product_elements_color_id_fkey" FOREIGN KEY ("color_id") REFERENCES "colors" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
+    CONSTRAINT "product_elements_element_id_fkey" FOREIGN KEY ("element_id") REFERENCES "elements" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
 );
-CREATE UNIQUE INDEX IF NOT EXISTS "product_elements_product_id_element_id_color_id_key" ON "product_elements"("product_id", "element_id", "color_id");
+CREATE UNIQUE INDEX IF NOT EXISTS "product_elements_product_id_element_id_key" ON "product_elements"("product_id", "element_id");
 
 CREATE TABLE IF NOT EXISTS "inventory" (
     "id" TEXT NOT NULL PRIMARY KEY,
-    "element_id" TEXT NOT NULL,
-    "color_id" TEXT NOT NULL,
+    "element_id" TEXT NOT NULL UNIQUE,
     "total_amount" INTEGER NOT NULL DEFAULT 0,
     "updated_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "inventory_element_id_fkey" FOREIGN KEY ("element_id") REFERENCES "elements" ("id") ON DELETE RESTRICT ON UPDATE CASCADE,
-    CONSTRAINT "inventory_color_id_fkey" FOREIGN KEY ("color_id") REFERENCES "colors" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
+    CONSTRAINT "inventory_element_id_fkey" FOREIGN KEY ("element_id") REFERENCES "elements" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
 );
-CREATE UNIQUE INDEX IF NOT EXISTS "inventory_element_id_color_id_key" ON "inventory"("element_id", "color_id");
 
 CREATE TABLE IF NOT EXISTS "product_stock" (
     "id" TEXT NOT NULL PRIMARY KEY,
@@ -159,12 +152,10 @@ CREATE UNIQUE INDEX IF NOT EXISTS "product_stock_product_id_key" ON "product_sto
 CREATE TABLE IF NOT EXISTS "inventory_transactions" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "element_id" TEXT,
-    "color_id" TEXT,
     "change_amount" INTEGER NOT NULL,
     "reason" TEXT NOT NULL,
     "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "inventory_transactions_element_id_fkey" FOREIGN KEY ("element_id") REFERENCES "elements" ("id") ON DELETE SET NULL ON UPDATE CASCADE,
-    CONSTRAINT "inventory_transactions_color_id_fkey" FOREIGN KEY ("color_id") REFERENCES "colors" ("id") ON DELETE SET NULL ON UPDATE CASCADE
+    CONSTRAINT "inventory_transactions_element_id_fkey" FOREIGN KEY ("element_id") REFERENCES "elements" ("id") ON DELETE SET NULL ON UPDATE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS "orders" (
@@ -204,16 +195,14 @@ CREATE TABLE IF NOT EXISTS "material_requirements" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "manufacturing_order_id" TEXT NOT NULL,
     "element_id" TEXT NOT NULL,
-    "color_id" TEXT NOT NULL,
     "quantity_needed" INTEGER NOT NULL,
     "quantity_produced" INTEGER NOT NULL DEFAULT 0,
     "total_weight_grams" DECIMAL NOT NULL,
     "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT "material_requirements_manufacturing_order_id_fkey" FOREIGN KEY ("manufacturing_order_id") REFERENCES "manufacturing_orders" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
-    CONSTRAINT "material_requirements_element_id_fkey" FOREIGN KEY ("element_id") REFERENCES "elements" ("id") ON DELETE RESTRICT ON UPDATE CASCADE,
-    CONSTRAINT "material_requirements_color_id_fkey" FOREIGN KEY ("color_id") REFERENCES "colors" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
+    CONSTRAINT "material_requirements_element_id_fkey" FOREIGN KEY ("element_id") REFERENCES "elements" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
 );
-CREATE UNIQUE INDEX IF NOT EXISTS "material_requirements_manufacturing_order_id_element_id_color_id_key" ON "material_requirements"("manufacturing_order_id", "element_id", "color_id");
+CREATE UNIQUE INDEX IF NOT EXISTS "material_requirements_manufacturing_order_id_element_id_key" ON "material_requirements"("manufacturing_order_id", "element_id");
 `;
 
 function createWindow() {
@@ -518,7 +507,6 @@ ipcMain.handle('orders:getById', async (_event, id: string): Promise<IPCResponse
                 productElements: {
                   include: {
                     element: true,
-                    color: true,
                   },
                 },
               },
@@ -530,7 +518,6 @@ ipcMain.handle('orders:getById', async (_event, id: string): Promise<IPCResponse
             requirements: {
               include: {
                 element: true,
-                color: true,
               },
             },
             product: true,
@@ -579,7 +566,6 @@ ipcMain.handle('orders:create', async (_event, data: CreateOrderDTO): Promise<IP
                   productElements: {
                     include: {
                       element: true,
-                      color: true,
                     },
                   },
                 },
@@ -606,21 +592,21 @@ ipcMain.handle('orders:create', async (_event, data: CreateOrderDTO): Promise<IP
           // Generate material requirements from product elements
           if (item.product?.productElements) {
             for (const pe of item.product.productElements) {
-              const quantityNeeded = pe.quantityNeeded * totalUnits;
+              const rawQty = pe.quantityNeeded * totalUnits;
+              // Dual-color elements halve the quantity needed (each piece counts as 2)
+              const quantityNeeded = pe.element?.isDualColor ? Math.ceil(rawQty / 2) : rawQty;
               const totalWeightGrams = Number(pe.element?.weightGrams ?? 0) * quantityNeeded;
 
               await prisma.materialRequirement.upsert({
                 where: {
-                  manufacturingOrderId_elementId_colorId: {
+                  manufacturingOrderId_elementId: {
                     manufacturingOrderId: mfgOrder.id,
                     elementId: pe.elementId,
-                    colorId: pe.colorId,
                   },
                 },
                 create: {
                   manufacturingOrderId: mfgOrder.id,
                   elementId: pe.elementId,
-                  colorId: pe.colorId,
                   quantityNeeded,
                   totalWeightGrams,
                 },
@@ -649,7 +635,6 @@ ipcMain.handle('orders:create', async (_event, data: CreateOrderDTO): Promise<IP
             requirements: {
               include: {
                 element: true,
-                color: true,
               },
             },
           },
@@ -671,6 +656,8 @@ ipcMain.handle('orders:update', async (_event, id: string, data: UpdateOrderDTO)
       data: {
         status: data.status,
         notes: data.notes,
+        // Auto-set shippedAt when status changes to shipped
+        ...(data.status === 'shipped' ? { shippedAt: new Date() } : {}),
       },
       include: {
         orderItems: {
@@ -680,7 +667,6 @@ ipcMain.handle('orders:update', async (_event, id: string, data: UpdateOrderDTO)
                 productElements: {
                   include: {
                     element: true,
-                    color: true,
                   },
                 },
               },
@@ -714,21 +700,21 @@ ipcMain.handle('orders:update', async (_event, id: string, data: UpdateOrderDTO)
         // Generate material requirements from product elements
         if (item.product?.productElements) {
           for (const pe of item.product.productElements) {
-            const quantityNeeded = pe.quantityNeeded * totalUnits;
+            const rawQty = pe.quantityNeeded * totalUnits;
+            // Dual-color elements halve the quantity needed (each piece counts as 2)
+            const quantityNeeded = pe.element?.isDualColor ? Math.ceil(rawQty / 2) : rawQty;
             const totalWeightGrams = Number(pe.element?.weightGrams ?? 0) * quantityNeeded;
 
             await prisma.materialRequirement.upsert({
               where: {
-                manufacturingOrderId_elementId_colorId: {
+                manufacturingOrderId_elementId: {
                   manufacturingOrderId: mfgOrder.id,
                   elementId: pe.elementId,
-                  colorId: pe.colorId,
                 },
               },
               create: {
                 manufacturingOrderId: mfgOrder.id,
                 elementId: pe.elementId,
-                colorId: pe.colorId,
                 quantityNeeded,
                 totalWeightGrams,
               },
@@ -785,7 +771,6 @@ ipcMain.handle('manufacturing:getAll', async (): Promise<IPCResponse<any[]>> => 
         requirements: {
           include: {
             element: true,
-            color: true,
           },
         },
       },
@@ -808,7 +793,6 @@ ipcMain.handle('manufacturing:getById', async (_event, id: string): Promise<IPCR
             productElements: {
               include: {
                 element: true,
-                color: true,
               },
             },
           },
@@ -817,7 +801,6 @@ ipcMain.handle('manufacturing:getById', async (_event, id: string): Promise<IPCR
         requirements: {
           include: {
             element: true,
-            color: true,
           },
         },
       },
@@ -885,11 +868,9 @@ ipcMain.handle('requirements:getByManufacturingOrder', async (_event, manufactur
       where: { manufacturingOrderId },
       include: {
         element: true,
-        color: true,
       },
       orderBy: [
         { element: { uniqueName: 'asc' } },
-        { color: { colorName: 'asc' } },
       ],
     });
     return { success: true, data: serialize(requirements) };
@@ -910,7 +891,6 @@ ipcMain.handle('requirements:generate', async (_event, manufacturingOrderId: str
             productElements: {
               include: {
                 element: true,
-                color: true,
               },
             },
           },
@@ -924,13 +904,14 @@ ipcMain.handle('requirements:generate', async (_event, manufacturingOrderId: str
 
     // Calculate requirements for each ProductElement
     const requirementsData = mfgOrder.product.productElements.map((pe) => {
-      const quantityNeeded = pe.quantityNeeded * mfgOrder.quantityToMake;
+      const rawQty = pe.quantityNeeded * mfgOrder.quantityToMake;
+      // Dual-color elements halve the quantity needed (each piece counts as 2)
+      const quantityNeeded = pe.element.isDualColor ? Math.ceil(rawQty / 2) : rawQty;
       const totalWeightGrams = Number(pe.element.weightGrams) * quantityNeeded;
 
       return {
         manufacturingOrderId,
         elementId: pe.elementId,
-        colorId: pe.colorId,
         quantityNeeded,
         totalWeightGrams,
       };
@@ -941,10 +922,9 @@ ipcMain.handle('requirements:generate', async (_event, manufacturingOrderId: str
       requirementsData.map((req) =>
         prisma.materialRequirement.upsert({
           where: {
-            manufacturingOrderId_elementId_colorId: {
+            manufacturingOrderId_elementId: {
               manufacturingOrderId: req.manufacturingOrderId,
               elementId: req.elementId,
-              colorId: req.colorId,
             },
           },
           create: req,
@@ -954,7 +934,6 @@ ipcMain.handle('requirements:generate', async (_event, manufacturingOrderId: str
           },
           include: {
             element: true,
-            color: true,
           },
         })
       )
@@ -981,7 +960,6 @@ ipcMain.handle('production:getInProduction', async (): Promise<IPCResponse<any[]
                 productElements: {
                   include: {
                     element: true,
-                    color: true,
                   },
                 },
               },
@@ -993,7 +971,6 @@ ipcMain.handle('production:getInProduction', async (): Promise<IPCResponse<any[]
             requirements: {
               include: {
                 element: true,
-                color: true,
               },
             },
           },
@@ -1021,21 +998,21 @@ ipcMain.handle('production:getInProduction', async (): Promise<IPCResponse<any[]
 
           if (item.product?.productElements) {
             for (const pe of item.product.productElements) {
-              const quantityNeeded = pe.quantityNeeded * totalUnits;
+              const rawQty = pe.quantityNeeded * totalUnits;
+              // Dual-color elements halve the quantity needed (each piece counts as 2)
+              const quantityNeeded = pe.element?.isDualColor ? Math.ceil(rawQty / 2) : rawQty;
               const totalWeightGrams = Number(pe.element?.weightGrams ?? 0) * quantityNeeded;
 
               await prisma.materialRequirement.upsert({
                 where: {
-                  manufacturingOrderId_elementId_colorId: {
+                  manufacturingOrderId_elementId: {
                     manufacturingOrderId: mfgOrder.id,
                     elementId: pe.elementId,
-                    colorId: pe.colorId,
                   },
                 },
                 create: {
                   manufacturingOrderId: mfgOrder.id,
                   elementId: pe.elementId,
-                  colorId: pe.colorId,
                   quantityNeeded,
                   totalWeightGrams,
                 },
@@ -1053,7 +1030,7 @@ ipcMain.handle('production:getInProduction', async (): Promise<IPCResponse<any[]
           where: { orderId: order.id },
           include: {
             requirements: {
-              include: { element: true, color: true },
+              include: { element: true },
             },
           },
         });
@@ -1062,13 +1039,15 @@ ipcMain.handle('production:getInProduction', async (): Promise<IPCResponse<any[]
       }
     }
 
-    // Aggregate elements per order (group by element+color)
+    // Aggregate elements per order (group by element)
     const result = orders.map(order => {
       const elementMap = new Map<string, {
         elementId: string;
-        colorId: string;
         elementName: string;
-        colorName: string;
+        elementLabel: string;
+        color: string;
+        color2: string | null;
+        isDualColor: boolean;
         material: string;
         imageUrl: string | null;
         weightPerUnit: number;
@@ -1080,7 +1059,7 @@ ipcMain.handle('production:getInProduction', async (): Promise<IPCResponse<any[]
 
       for (const mfgOrder of order.manufacturingOrders) {
         for (const req of mfgOrder.requirements) {
-          const key = `${req.elementId}::${req.colorId}`;
+          const key = req.elementId;
           const existing = elementMap.get(key);
           if (existing) {
             existing.totalNeeded += req.quantityNeeded;
@@ -1090,9 +1069,11 @@ ipcMain.handle('production:getInProduction', async (): Promise<IPCResponse<any[]
           } else {
             elementMap.set(key, {
               elementId: req.elementId,
-              colorId: req.colorId,
               elementName: req.element?.uniqueName ?? 'Unknown',
-              colorName: req.color?.colorName ?? 'Unknown',
+              elementLabel: req.element?.label ?? '',
+              color: req.element?.color ?? 'Unknown',
+              color2: req.element?.color2 ?? null,
+              isDualColor: req.element?.isDualColor ?? false,
               material: req.element?.material ?? '',
               imageUrl: req.element?.imageUrl ?? null,
               weightPerUnit: Number(req.element?.weightGrams ?? 0),
@@ -1124,18 +1105,17 @@ ipcMain.handle('production:getInProduction', async (): Promise<IPCResponse<any[]
 
 ipcMain.handle('production:recordProduction', async (_event, data: RecordProductionDTO): Promise<IPCResponse<any>> => {
   try {
-    const { orderId, elementId, colorId, amountProduced } = data;
+    const { orderId, elementId, amountProduced } = data;
 
     if (amountProduced <= 0) {
       return { success: false, error: 'Amount must be greater than 0' };
     }
 
-    // Find all material requirements for this order+element+color
+    // Find all material requirements for this order+element
     const requirements = await prisma.materialRequirement.findMany({
       where: {
         manufacturingOrder: { orderId },
         elementId,
-        colorId,
       },
     });
 
@@ -1164,7 +1144,6 @@ ipcMain.handle('production:recordProduction', async (_event, data: RecordProduct
       await tx.inventoryTransaction.create({
         data: {
           elementId,
-          colorId,
           changeAmount: amountProduced,
           reason: `Production for Order`,
         },
@@ -1173,11 +1152,10 @@ ipcMain.handle('production:recordProduction', async (_event, data: RecordProduct
       // Update or create inventory record
       await tx.inventory.upsert({
         where: {
-          elementId_colorId: { elementId, colorId },
+          elementId,
         },
         create: {
           elementId,
-          colorId,
           totalAmount: amountProduced,
         },
         update: {
@@ -1186,19 +1164,26 @@ ipcMain.handle('production:recordProduction', async (_event, data: RecordProduct
       });
     });
 
-    // Calculate new remaining total for this element+color in this order
+    // Calculate new remaining total for this element in this order
     const updatedReqs = await prisma.materialRequirement.findMany({
       where: {
         manufacturingOrder: { orderId },
         elementId,
-        colorId,
       },
     });
     const totalNeeded = updatedReqs.reduce((sum, r) => sum + r.quantityNeeded, 0);
     const totalProduced = updatedReqs.reduce((sum, r) => sum + r.quantityProduced, 0);
     const remaining = totalNeeded - totalProduced;
 
-    return { success: true, data: { remaining } };
+    // Check if ALL elements for this order are complete
+    const allReqs = await prisma.materialRequirement.findMany({
+      where: {
+        manufacturingOrder: { orderId },
+      },
+    });
+    const orderComplete = allReqs.every(r => r.quantityProduced >= r.quantityNeeded);
+
+    return { success: true, data: { remaining, orderComplete } };
   } catch (error) {
     console.error('[IPC] production:recordProduction failed:', error);
     return { success: false, error: String(error) };
@@ -1274,7 +1259,9 @@ ipcMain.handle('assembly:record', async (_event, data: { orderId: string; produc
     const product = await prisma.product.findUnique({
       where: { id: productId },
       include: {
-        productElements: true,
+        productElements: {
+          include: { element: true },
+        },
       },
     });
 
@@ -1286,20 +1273,22 @@ ipcMain.handle('assembly:record', async (_event, data: { orderId: string; produc
     const totalUnitsAssembled = boxesAssembled * (product.unitsPerBox ?? 1);
 
     // ── INVENTORY GUARD: check all elements have enough stock BEFORE transaction ──
-    const insufficientElements: { elementName: string; colorName: string; required: number; available: number }[] = [];
+    const insufficientElements: { elementName: string; color: string; required: number; available: number }[] = [];
     for (const pe of product.productElements) {
-      const deductAmount = pe.quantityNeeded * totalUnitsAssembled;
+      const rawQty = pe.quantityNeeded * totalUnitsAssembled;
+      // Dual-color elements: each piece counts as 2, so halve the deduction
+      const deductAmount = pe.element?.isDualColor ? Math.ceil(rawQty / 2) : rawQty;
       const inventoryRecord = await prisma.inventory.findUnique({
         where: {
-          elementId_colorId: { elementId: pe.elementId, colorId: pe.colorId },
+          elementId: pe.elementId,
         },
-        include: { element: true, color: true },
+        include: { element: true },
       });
       const available = inventoryRecord?.totalAmount ?? 0;
       if (available < deductAmount) {
         insufficientElements.push({
           elementName: inventoryRecord?.element?.uniqueName ?? pe.elementId,
-          colorName: inventoryRecord?.color?.colorName ?? pe.colorId,
+          color: inventoryRecord?.element?.color ?? 'Unknown',
           required: deductAmount,
           available,
         });
@@ -1308,7 +1297,7 @@ ipcMain.handle('assembly:record', async (_event, data: { orderId: string; produc
 
     if (insufficientElements.length > 0) {
       const details = insufficientElements
-        .map(e => `${e.elementName} (${e.colorName}): need ${e.required}, have ${e.available}`)
+        .map(e => `${e.elementName} (${e.color}): need ${e.required}, have ${e.available}`)
         .join('\n');
       return {
         success: false,
@@ -1337,12 +1326,14 @@ ipcMain.handle('assembly:record', async (_event, data: { orderId: string; produc
 
       // Deduct elements from inventory for each product element
       for (const pe of product.productElements) {
-        const deductAmount = pe.quantityNeeded * totalUnitsAssembled;
+        const rawQty = pe.quantityNeeded * totalUnitsAssembled;
+        // Dual-color elements: each piece counts as 2, so halve the deduction
+        const deductAmount = pe.element?.isDualColor ? Math.ceil(rawQty / 2) : rawQty;
 
         // Deduct from inventory (guaranteed to exist and have enough from guard above)
         await tx.inventory.update({
           where: {
-            elementId_colorId: { elementId: pe.elementId, colorId: pe.colorId },
+            elementId: pe.elementId,
           },
           data: {
             totalAmount: { decrement: deductAmount },
@@ -1353,7 +1344,6 @@ ipcMain.handle('assembly:record', async (_event, data: { orderId: string; produc
         await tx.inventoryTransaction.create({
           data: {
             elementId: pe.elementId,
-            colorId: pe.colorId,
             changeAmount: -deductAmount,
             reason: `Assembly: ${boxesAssembled} box(es) of ${product.serialNumber}`,
           },
@@ -1420,11 +1410,9 @@ ipcMain.handle('inventory:getAll', async (): Promise<IPCResponse<any[]>> => {
     const inventory = await prisma.inventory.findMany({
       include: {
         element: true,
-        color: true,
       },
       orderBy: [
         { element: { uniqueName: 'asc' } },
-        { color: { colorName: 'asc' } },
       ],
     });
     return { success: true, data: serialize(inventory) };
@@ -1434,18 +1422,14 @@ ipcMain.handle('inventory:getAll', async (): Promise<IPCResponse<any[]>> => {
   }
 });
 
-ipcMain.handle('inventory:getByElement', async (_event, elementId: string, colorId: string): Promise<IPCResponse<any>> => {
+ipcMain.handle('inventory:getByElement', async (_event, elementId: string): Promise<IPCResponse<any>> => {
   try {
     const inventory = await prisma.inventory.findUnique({
       where: {
-        elementId_colorId: {
-          elementId,
-          colorId,
-        },
+        elementId,
       },
       include: {
         element: true,
-        color: true,
       },
     });
     return { success: true, data: serialize(inventory) };
@@ -1463,7 +1447,6 @@ ipcMain.handle('inventory:adjust', async (_event, data: CreateInventoryTransacti
       await tx.inventoryTransaction.create({
         data: {
           elementId: data.elementId,
-          colorId: data.colorId,
           changeAmount: data.changeAmount,
           reason: data.reason,
         },
@@ -1472,14 +1455,10 @@ ipcMain.handle('inventory:adjust', async (_event, data: CreateInventoryTransacti
       // Update or create inventory record
       const inventory = await tx.inventory.upsert({
         where: {
-          elementId_colorId: {
-            elementId: data.elementId,
-            colorId: data.colorId,
-          },
+          elementId: data.elementId,
         },
         create: {
           elementId: data.elementId,
-          colorId: data.colorId,
           totalAmount: data.changeAmount,
         },
         update: {
@@ -1489,7 +1468,6 @@ ipcMain.handle('inventory:adjust', async (_event, data: CreateInventoryTransacti
         },
         include: {
           element: true,
-          color: true,
         },
       });
 
@@ -1503,12 +1481,31 @@ ipcMain.handle('inventory:adjust', async (_event, data: CreateInventoryTransacti
   }
 });
 
+ipcMain.handle('inventory:delete', async (_event, id: string): Promise<IPCResponse<{ id: string }>> => {
+  try {
+    await prisma.$transaction(async (tx) => {
+      // Get the inventory record to find the elementId
+      const inv = await tx.inventory.findUnique({ where: { id } });
+      if (!inv) throw new Error('Inventory record not found');
+
+      // Delete related inventory transactions for this element
+      await tx.inventoryTransaction.deleteMany({ where: { elementId: inv.elementId } });
+
+      // Delete the inventory record
+      await tx.inventory.delete({ where: { id } });
+    });
+    return { success: true, data: { id } };
+  } catch (error) {
+    console.error('[IPC] inventory:delete failed:', error);
+    return { success: false, error: String(error) };
+  }
+});
+
 ipcMain.handle('inventory:getTransactions', async (): Promise<IPCResponse<any[]>> => {
   try {
     const transactions = await prisma.inventoryTransaction.findMany({
       include: {
         element: true,
-        color: true,
       },
       orderBy: { createdAt: 'desc' },
       take: 100, // Limit to most recent 100 transactions
@@ -1528,7 +1525,6 @@ ipcMain.handle('products:getAll', async (): Promise<IPCResponse<any[]>> => {
         productElements: {
           include: {
             element: true,
-            color: true,
           },
         },
         productStock: true,
@@ -1550,7 +1546,6 @@ ipcMain.handle('products:getById', async (_event, id: string): Promise<IPCRespon
         productElements: {
           include: {
             element: true,
-            color: true,
           },
         },
         productStock: true,
@@ -1569,6 +1564,7 @@ ipcMain.handle('products:create', async (_event, data: CreateProductDTO): Promis
       data: {
         serialNumber: data.serialNumber,
         category: data.category,
+        label: data.label ?? '',
         unitsPerAssembly: data.unitsPerAssembly ?? 1,
         unitsPerBox: data.unitsPerBox,
         imageUrl: data.imageUrl,
@@ -1581,18 +1577,16 @@ ipcMain.handle('products:create', async (_event, data: CreateProductDTO): Promis
   }
 });
 
-ipcMain.handle('products:addElement', async (_event, data: { productId: string; elementId: string; colorId: string; quantityNeeded: number }): Promise<IPCResponse<any>> => {
+ipcMain.handle('products:addElement', async (_event, data: { productId: string; elementId: string; quantityNeeded: number }): Promise<IPCResponse<any>> => {
   try {
     const pe = await prisma.productElement.create({
       data: {
         productId: data.productId,
         elementId: data.elementId,
-        colorId: data.colorId,
         quantityNeeded: data.quantityNeeded,
       },
       include: {
         element: true,
-        color: true,
       },
     });
     return { success: true, data: serialize(pe) };
@@ -1660,33 +1654,6 @@ ipcMain.handle('productStock:getById', async (_event, productId: string): Promis
   }
 });
 
-// ========== COLORS ==========
-ipcMain.handle('colors:getAll', async (): Promise<IPCResponse<any[]>> => {
-  try {
-    const colors = await prisma.color.findMany({
-      orderBy: { colorName: 'asc' },
-    });
-    return { success: true, data: colors };
-  } catch (error) {
-    console.error('[IPC] colors:getAll failed:', error);
-    return { success: false, error: String(error) };
-  }
-});
-
-ipcMain.handle('colors:create', async (_event, data: CreateColorDTO): Promise<IPCResponse<any>> => {
-  try {
-    const color = await prisma.color.create({
-      data: {
-        colorName: data.colorName,
-      },
-    });
-    return { success: true, data: color };
-  } catch (error) {
-    console.error('[IPC] colors:create failed:', error);
-    return { success: false, error: String(error) };
-  }
-});
-
 // ========== ELEMENTS ==========
 ipcMain.handle('elements:getAll', async (): Promise<IPCResponse<any[]>> => {
   try {
@@ -1705,6 +1672,10 @@ ipcMain.handle('elements:create', async (_event, data: CreateElementDTO): Promis
     const element = await prisma.element.create({
       data: {
         uniqueName: data.uniqueName,
+        label: data.label ?? '',
+        color: data.color,
+        color2: data.color2 ?? null,
+        isDualColor: data.isDualColor ?? false,
         material: data.material,
         weightGrams: data.weightGrams,
         imageUrl: data.imageUrl,
@@ -1713,6 +1684,127 @@ ipcMain.handle('elements:create', async (_event, data: CreateElementDTO): Promis
     return { success: true, data: serialize(element) };
   } catch (error) {
     console.error('[IPC] elements:create failed:', error);
+    return { success: false, error: String(error) };
+  }
+});
+
+ipcMain.handle('elements:update', async (_event, id: string, data: UpdateElementDTO): Promise<IPCResponse<any>> => {
+  try {
+    const element = await prisma.element.update({
+      where: { id },
+      data: {
+        uniqueName: data.uniqueName,
+        label: data.label,
+        color: data.color,
+        color2: data.color2,
+        isDualColor: data.isDualColor,
+        material: data.material,
+        weightGrams: data.weightGrams,
+        imageUrl: data.imageUrl,
+      },
+    });
+    return { success: true, data: serialize(element) };
+  } catch (error) {
+    console.error('[IPC] elements:update failed:', error);
+    return { success: false, error: String(error) };
+  }
+});
+
+ipcMain.handle('elements:delete', async (_event, id: string): Promise<IPCResponse<{ id: string }>> => {
+  try {
+    // Check if element is used in any product
+    const usageCount = await prisma.productElement.count({ where: { elementId: id } });
+    if (usageCount > 0) {
+      return { success: false, error: `Cannot delete: element is used in ${usageCount} product(s). Remove it from all products first.` };
+    }
+    // Delete inventory and transactions for this element
+    await prisma.$transaction(async (tx) => {
+      await tx.inventoryTransaction.deleteMany({ where: { elementId: id } });
+      await tx.inventory.deleteMany({ where: { elementId: id } });
+      await tx.materialRequirement.deleteMany({ where: { elementId: id } });
+      await tx.element.delete({ where: { id } });
+    });
+    return { success: true, data: { id } };
+  } catch (error) {
+    console.error('[IPC] elements:delete failed:', error);
+    return { success: false, error: String(error) };
+  }
+});
+
+// ========== PRODUCTS (UPDATE & CLONE) ==========
+ipcMain.handle('products:update', async (_event, id: string, data: UpdateProductDTO): Promise<IPCResponse<any>> => {
+  try {
+    const product = await prisma.product.update({
+      where: { id },
+      data: {
+        serialNumber: data.serialNumber,
+        category: data.category,
+        label: data.label,
+        unitsPerBox: data.unitsPerBox,
+        imageUrl: data.imageUrl,
+      },
+      include: {
+        productElements: {
+          include: { element: true },
+        },
+        productStock: true,
+      },
+    });
+    return { success: true, data: serialize(product) };
+  } catch (error) {
+    console.error('[IPC] products:update failed:', error);
+    return { success: false, error: String(error) };
+  }
+});
+
+ipcMain.handle('products:clone', async (_event, data: CloneProductDTO): Promise<IPCResponse<any>> => {
+  try {
+    // Find source product with all elements
+    const source = await prisma.product.findUnique({
+      where: { id: data.sourceProductId },
+      include: { productElements: true },
+    });
+    if (!source) {
+      return { success: false, error: 'Source product not found' };
+    }
+
+    // Create the clone
+    const cloned = await prisma.product.create({
+      data: {
+        serialNumber: data.newSerialNumber,
+        category: source.category,
+        label: source.label,
+        unitsPerAssembly: source.unitsPerAssembly,
+        unitsPerBox: source.unitsPerBox,
+        imageUrl: source.imageUrl,
+        productElements: {
+          create: source.productElements.map(pe => ({
+            elementId: pe.elementId,
+            quantityNeeded: pe.quantityNeeded,
+          })),
+        },
+      },
+      include: {
+        productElements: {
+          include: { element: true },
+        },
+        productStock: true,
+      },
+    });
+
+    return { success: true, data: serialize(cloned) };
+  } catch (error) {
+    console.error('[IPC] products:clone failed:', error);
+    return { success: false, error: String(error) };
+  }
+});
+
+ipcMain.handle('products:removeElement', async (_event, id: string): Promise<IPCResponse<{ id: string }>> => {
+  try {
+    await prisma.productElement.delete({ where: { id } });
+    return { success: true, data: { id } };
+  } catch (error) {
+    console.error('[IPC] products:removeElement failed:', error);
     return { success: false, error: String(error) };
   }
 });

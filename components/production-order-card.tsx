@@ -6,7 +6,8 @@ import { colorNameToHex } from '../lib/utils';
 
 interface ProductionOrderCardProps {
   order: ProductionOrderData;
-  onRecordProduction: (orderId: string, elementId: string, colorId: string, amount: number) => Promise<number | null>;
+  onRecordProduction: (orderId: string, elementId: string, amount: number) => Promise<number | null>;
+  onPrint?: (orderId: string) => void;
 }
 
 function formatDate(date: Date | string): string {
@@ -24,7 +25,7 @@ function formatWeight(grams: number): string {
   return `${grams.toFixed(1)} g`;
 }
 
-export default function ProductionOrderCard({ order, onRecordProduction }: ProductionOrderCardProps) {
+export default function ProductionOrderCard({ order, onRecordProduction, onPrint }: ProductionOrderCardProps) {
   return (
     <div className="rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
       {/* Order Header */}
@@ -37,10 +38,23 @@ export default function ProductionOrderCard({ order, onRecordProduction }: Produ
             {order.clientName} · {formatDate(order.createdAt)}
           </p>
         </div>
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 dark:bg-blue-950/30 dark:text-blue-400">
-          <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
-          In Production
-        </span>
+        <div className="flex items-center gap-2">
+          {onPrint && (
+            <button
+              onClick={() => onPrint(order.orderId)}
+              className="rounded-lg border border-zinc-300 bg-white p-1.5 text-zinc-500 transition-colors hover:bg-zinc-50 hover:text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700 dark:hover:text-zinc-200"
+              title="Print this order"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+              </svg>
+            </button>
+          )}
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 dark:bg-blue-950/30 dark:text-blue-400">
+            <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
+            In Production
+          </span>
+        </div>
       </div>
 
       {/* Notes */}
@@ -60,7 +74,7 @@ export default function ProductionOrderCard({ order, onRecordProduction }: Produ
           <div className="space-y-2">
             {order.elements.map(element => (
               <ProductionElementRow
-                key={`${element.elementId}-${element.colorId}`}
+                key={element.elementId}
                 element={element}
                 orderId={order.orderId}
                 onRecordProduction={onRecordProduction}
@@ -90,7 +104,7 @@ export default function ProductionOrderCard({ order, onRecordProduction }: Produ
 interface ProductionElementRowProps {
   element: ProductionElementGroup;
   orderId: string;
-  onRecordProduction: (orderId: string, elementId: string, colorId: string, amount: number) => Promise<number | null>;
+  onRecordProduction: (orderId: string, elementId: string, amount: number) => Promise<number | null>;
 }
 
 function ProductionElementRow({ element, orderId, onRecordProduction }: ProductionElementRowProps) {
@@ -112,16 +126,12 @@ function ProductionElementRow({ element, orderId, onRecordProduction }: Producti
       setError('Enter a valid amount');
       return;
     }
-    if (amount > remaining) {
-      setError(`Max remaining: ${remaining}`);
-      return;
-    }
 
     setError('');
     setIsSubmitting(true);
 
     try {
-      const newRemaining = await onRecordProduction(orderId, element.elementId, element.colorId, amount);
+      const newRemaining = await onRecordProduction(orderId, element.elementId, amount);
       if (newRemaining !== null) {
         setRemaining(newRemaining);
         setTotalProduced(element.totalNeeded - newRemaining);
@@ -174,13 +184,25 @@ function ProductionElementRow({ element, orderId, onRecordProduction }: Producti
           {/* Color circle */}
           <div
             className="h-5 w-5 rounded-full border-2 border-zinc-300 dark:border-zinc-500 flex-shrink-0"
-            style={{ backgroundColor: colorNameToHex(element.colorName) }}
-            title={element.colorName}
+            style={{ backgroundColor: colorNameToHex(element.color) }}
+            title={element.color}
           />
+          {element.isDualColor && element.color2 && (
+            <div
+              className="h-5 w-5 rounded-full border-2 border-zinc-300 dark:border-zinc-500 flex-shrink-0 -ml-2"
+              style={{ backgroundColor: colorNameToHex(element.color2) }}
+              title={element.color2}
+            />
+          )}
+          {element.elementLabel && (
+            <span className="inline-flex items-center rounded bg-purple-100 px-2 py-0.5 text-xs font-bold uppercase text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">
+              {element.elementLabel}
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-4 mt-1.5 text-sm text-zinc-600 dark:text-zinc-300">
           <span>Need: <span className="font-bold text-lg text-zinc-900 dark:text-zinc-100">{element.totalNeeded}</span></span>
-          <span>Remaining: <span className={`font-bold text-lg ${isDone ? 'text-green-600 dark:text-green-400' : 'text-amber-600 dark:text-amber-400'}`}>{remaining}</span></span>
+          <span>Remaining: <span className={`font-bold text-lg ${isDone ? 'text-green-600 dark:text-green-400' : 'text-amber-600 dark:text-amber-400'}`}>{Math.max(0, remaining)}</span></span>
           <span>Weight: <span className="font-semibold">{formatWeight(remainingWeight)}</span></span>
         </div>
 
@@ -212,7 +234,6 @@ function ProductionElementRow({ element, orderId, onRecordProduction }: Producti
                 onKeyDown={handleKeyDown}
                 placeholder="Qty"
                 min="1"
-                max={remaining}
                 className="w-20 rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 dark:border-zinc-600 dark:bg-zinc-700 dark:text-zinc-100 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                 disabled={isSubmitting}
               />

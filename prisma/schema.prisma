@@ -32,23 +32,13 @@ model User {
 // STATIC DATA (Catalog)
 // ============================================================================
 
-model Color {
-  id        String   @id @default(cuid())
-  colorName String   @unique @map("color_name")
-  createdAt DateTime @default(now()) @map("created_at")
-
-  // Relations
-  productElements       ProductElement[]
-  inventory             Inventory[]
-  inventoryTransactions InventoryTransaction[]
-  materialRequirements  MaterialRequirement[]
-
-  @@map("colors")
-}
-
 model Element {
   id          String   @id @default(cuid())
-  uniqueName  String   @map("unique_name")
+  uniqueName  String   @map("unique_name")          // Element category/name (e.g., "Bucket", "Lid")
+  label       String   @default("") @map("label")   // Optional unique label for element identification
+  color       String                                 // Primary color (e.g., "Red")
+  color2      String?  @map("color_2")               // Optional second color for dual-color elements
+  isDualColor Boolean  @default(false) @map("is_dual_color") // When true, production quantity is halved
   material    String
   weightGrams Decimal  @default(0) @map("weight_grams") // Used to calculate total weight in pick lists
   imageUrl    String?  @map("image_url")
@@ -67,6 +57,7 @@ model Product {
   id                String   @id @default(cuid())
   serialNumber      String   @unique @map("serial_number")
   category          String
+  label             String   @default("")                    // User-defined text label displayed on product card
   unitsPerAssembly  Int      @default(1) @map("units_per_assembly") // How many finished units per assembly batch
   unitsPerBox       Int      @default(1) @map("units_per_box")      // How many finished units per shippable box
   imageUrl          String?  @map("image_url")
@@ -85,16 +76,14 @@ model ProductElement {
   id             String   @id @default(cuid())
   productId      String   @map("product_id")
   elementId      String   @map("element_id")
-  colorId        String   @map("color_id")
   quantityNeeded Int      @default(1) @map("quantity_needed") // Quantity per ONE finished product unit
   createdAt      DateTime @default(now()) @map("created_at")
 
   // Relations
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
   element Element @relation(fields: [elementId], references: [id], onDelete: Restrict)
-  color   Color   @relation(fields: [colorId], references: [id], onDelete: Restrict)
 
-  @@unique([productId, elementId, colorId])
+  @@unique([productId, elementId])
   @@map("product_elements")
 }
 
@@ -104,16 +93,13 @@ model ProductElement {
 
 model Inventory {
   id          String   @id @default(cuid())
-  elementId   String   @map("element_id")
-  colorId     String   @map("color_id")
+  elementId   String   @unique @map("element_id") // One inventory record per element
   totalAmount Int      @default(0) @map("total_amount")
   updatedAt   DateTime @default(now()) @updatedAt @map("updated_at")
 
   // Relations
   element Element @relation(fields: [elementId], references: [id])
-  color   Color   @relation(fields: [colorId], references: [id])
 
-  @@unique([elementId, colorId])
   @@map("inventory")
 }
 
@@ -132,26 +118,25 @@ model ProductStock {
 model InventoryTransaction {
   id           String   @id @default(cuid())
   elementId    String?  @map("element_id")
-  colorId      String?  @map("color_id")
   changeAmount Int      @map("change_amount")
   reason       String
   createdAt    DateTime @default(now()) @map("created_at")
 
   // Relations
   element Element? @relation(fields: [elementId], references: [id])
-  color   Color?   @relation(fields: [colorId], references: [id])
 
   @@map("inventory_transactions")
 }
 
 model Order {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   // Sequential order number managed by application layer (max+1 on create)
   // For PostgreSQL migration, switch to: @default(dbgenerated("nextval('orders_order_number_seq')"))
-  orderNumber Int      @unique @map("order_number")
-  clientName  String   @map("client_name")
-  createdAt   DateTime @default(now()) @map("created_at")
-  status      String   @default("pending") // Zod: 'pending' | 'in_production' | 'shipped'
+  orderNumber Int       @unique @map("order_number")
+  clientName  String    @map("client_name")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  shippedAt   DateTime? @map("shipped_at")               // Set when status → shipped
+  status      String    @default("pending") // Zod: 'pending' | 'in_production' | 'shipped'
   notes       String?
 
   // Relations
@@ -201,8 +186,7 @@ model MaterialRequirement {
   id                   String   @id @default(cuid())
   manufacturingOrderId String   @map("manufacturing_order_id")
   elementId            String   @map("element_id")
-  colorId              String   @map("color_id") // CRITICAL: Differentiates Red vs Blue variants
-  quantityNeeded       Int      @map("quantity_needed")       // Total count for this element+color
+  quantityNeeded       Int      @map("quantity_needed")       // Total count for this element
   quantityProduced     Int      @default(0) @map("quantity_produced") // Track production progress
   totalWeightGrams     Decimal  @map("total_weight_grams")    // Calculated: quantityNeeded * Element.weightGrams
   createdAt            DateTime @default(now()) @map("created_at")
@@ -210,8 +194,7 @@ model MaterialRequirement {
   // Relations
   manufacturingOrder ManufacturingOrder @relation(fields: [manufacturingOrderId], references: [id], onDelete: Cascade)
   element            Element            @relation(fields: [elementId], references: [id])
-  color              Color              @relation(fields: [colorId], references: [id])
 
-  @@unique([manufacturingOrderId, elementId, colorId])
+  @@unique([manufacturingOrderId, elementId])
   @@map("material_requirements")
 }

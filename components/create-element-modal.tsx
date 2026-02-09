@@ -1,8 +1,7 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import ColorPicker from './color-picker';
-import type { ColorResponse } from '../types/ipc';
 
 const ACCEPTED_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/bmp'];
 
@@ -18,30 +17,30 @@ function readFileAsDataUrl(file: File): Promise<string> {
 interface CreateElementModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onCreated: (element: { id: string; uniqueName: string; material: string; weightGrams: number; imageUrl: string | null; colorId: string; colorName: string }) => void;
+  onCreated: (element: { id: string; uniqueName: string; label: string; material: string; weightGrams: number; imageUrl: string | null; color: string; color2: string | null; isDualColor: boolean }) => void;
 }
 
 export default function CreateElementModal({ isOpen, onClose, onCreated }: CreateElementModalProps) {
   const [name, setName] = useState('');
+  const [label, setLabel] = useState('');
   const [material, setMaterial] = useState('');
   const [weight, setWeight] = useState('');
   const [imageDataUrl, setImageDataUrl] = useState<string | null>(null);
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
-  const [existingColors, setExistingColors] = useState<ColorResponse[]>([]);
+  const [selectedColor2, setSelectedColor2] = useState<string | null>(null);
+  const [isDualColor, setIsDualColor] = useState(false);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    if (isOpen) {
-      loadColors();
-      setName(''); setMaterial(''); setWeight('');
-      setImageDataUrl(null); setSelectedColor(null);
-      setError(''); setIsDragging(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    }
-  }, [isOpen]);
+  function resetForm() {
+    setName(''); setLabel(''); setMaterial(''); setWeight('');
+    setImageDataUrl(null); setSelectedColor(null);
+    setSelectedColor2(null); setIsDualColor(false);
+    setError(''); setIsDragging(false);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  }
 
   async function handleFileSelected(file: File) {
     if (!ACCEPTED_TYPES.includes(file.type)) {
@@ -76,12 +75,6 @@ export default function CreateElementModal({ isOpen, onClose, onCreated }: Creat
     if (file) handleFileSelected(file);
   }, []);
 
-  async function loadColors() {
-    if (!window.electron) return;
-    const result = await window.electron.getColors();
-    if (result.success) setExistingColors(result.data);
-  }
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
@@ -89,27 +82,19 @@ export default function CreateElementModal({ isOpen, onClose, onCreated }: Creat
     if (!material.trim()) { setError('Material is required'); return; }
     if (!weight || Number(weight) <= 0) { setError('Weight must be > 0'); return; }
     if (!selectedColor) { setError('Select a color'); return; }
+    if (isDualColor && !selectedColor2) { setError('Select a second color for dual-color'); return; }
     if (!window.electron) { setError('Electron not available'); return; }
 
     setIsSubmitting(true);
     try {
-      let colorId: string;
-      const existingColor = existingColors.find(
-        c => c.colorName.toLowerCase() === selectedColor.toLowerCase()
-      );
-      if (existingColor) {
-        colorId = existingColor.id;
-      } else {
-        const colorResult = await window.electron.createColor({ colorName: selectedColor });
-        if (!colorResult.success) { setError(colorResult.error || 'Failed to create color'); return; }
-        colorId = colorResult.data.id;
-        await loadColors();
-      }
-
       const elementResult = await window.electron.createElement({
         uniqueName: name.trim(),
+        label: label.trim() || '',
         material: material.trim(),
         weightGrams: Number(weight),
+        color: selectedColor,
+        color2: isDualColor ? selectedColor2 || undefined : undefined,
+        isDualColor,
         imageUrl: imageDataUrl || undefined,
       });
       if (!elementResult.success) { setError(elementResult.error || 'Failed to create element'); return; }
@@ -117,12 +102,15 @@ export default function CreateElementModal({ isOpen, onClose, onCreated }: Creat
       onCreated({
         id: elementResult.data.id,
         uniqueName: elementResult.data.uniqueName,
+        label: elementResult.data.label,
         material: elementResult.data.material,
         weightGrams: elementResult.data.weightGrams,
         imageUrl: elementResult.data.imageUrl,
-        colorId,
-        colorName: selectedColor,
+        color: elementResult.data.color,
+        color2: elementResult.data.color2,
+        isDualColor: elementResult.data.isDualColor,
       });
+      resetForm();
     } catch {
       setError('Failed to create element');
     } finally {
@@ -191,7 +179,17 @@ export default function CreateElementModal({ isOpen, onClose, onCreated }: Creat
             </div>
           </div>
 
-          {/* Row 2: Material + Weight side by side */}
+          {/* Row 2: Label (optional) */}
+          <div>
+            <label className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">Label <span className="text-zinc-400 dark:text-zinc-500">(optional)</span></label>
+            <input
+              type="text" value={label} onChange={(e) => setLabel(e.target.value)}
+              placeholder="Groups in production view"
+              className="w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-900 outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500/20 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+            />
+          </div>
+
+          {/* Row 3: Material + Weight side by side */}
           <div className="grid grid-cols-2 gap-2">
             <div>
               <label className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">Material <span className="text-red-500">*</span></label>
@@ -214,9 +212,29 @@ export default function CreateElementModal({ isOpen, onClose, onCreated }: Creat
           {/* Row 3: Color Picker (compact) */}
           <ColorPicker
             selectedColor={selectedColor}
-            existingColors={existingColors.map(c => c.colorName)}
+            existingColors={[]}
             onSelect={setSelectedColor}
           />
+
+          {/* Row 4: Dual Color */}
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="dualColor"
+              checked={isDualColor}
+              onChange={(e) => { setIsDualColor(e.target.checked); if (!e.target.checked) setSelectedColor2(null); }}
+              className="h-4 w-4 rounded border-zinc-300 text-blue-600 focus:ring-blue-500"
+            />
+            <label htmlFor="dualColor" className="text-xs font-medium text-zinc-600 dark:text-zinc-400">Dual color element</label>
+          </div>
+
+          {isDualColor && (
+            <ColorPicker
+              selectedColor={selectedColor2}
+              existingColors={[]}
+              onSelect={setSelectedColor2}
+            />
+          )}
 
           {/* Actions */}
           <div className="flex gap-2 pt-1">

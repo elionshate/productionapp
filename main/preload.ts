@@ -56,29 +56,31 @@ const electronAPI: ElectronAPI = {
 
   // ========== INVENTORY ==========
   getInventory: () => ipcRenderer.invoke('inventory:getAll'),
-  getInventoryByElement: (elementId, colorId) => 
-    ipcRenderer.invoke('inventory:getByElement', elementId, colorId),
+  getInventoryByElement: (elementId) => 
+    ipcRenderer.invoke('inventory:getByElement', elementId),
   adjustInventory: (data) => ipcRenderer.invoke('inventory:adjust', data),
+  deleteInventory: (id) => ipcRenderer.invoke('inventory:delete', id),
   getInventoryTransactions: () => ipcRenderer.invoke('inventory:getTransactions'),
 
   // ========== PRODUCTS ==========
   getProducts: () => ipcRenderer.invoke('products:getAll'),
   getProductById: (id) => ipcRenderer.invoke('products:getById', id),
   createProduct: (data) => ipcRenderer.invoke('products:create', data),
+  updateProduct: (id, data) => ipcRenderer.invoke('products:update', id, data),
+  cloneProduct: (data) => ipcRenderer.invoke('products:clone', data),
   addProductElement: (data) => ipcRenderer.invoke('products:addElement', data),
+  removeProductElement: (id) => ipcRenderer.invoke('products:removeElement', id),
   deleteProduct: (id) => ipcRenderer.invoke('products:delete', id),
 
   // ========== PRODUCT STOCK ==========
   getProductStock: () => ipcRenderer.invoke('productStock:getAll'),
   getProductStockById: (productId) => ipcRenderer.invoke('productStock:getById', productId),
 
-  // ========== COLORS ==========
-  getColors: () => ipcRenderer.invoke('colors:getAll'),
-  createColor: (data) => ipcRenderer.invoke('colors:create', data),
-
   // ========== ELEMENTS ==========
   getElements: () => ipcRenderer.invoke('elements:getAll'),
   createElement: (data) => ipcRenderer.invoke('elements:create', data),
+  updateElement: (id, data) => ipcRenderer.invoke('elements:update', id, data),
+  deleteElement: (id) => ipcRenderer.invoke('elements:delete', id),
 
   // ========== DIALOG ==========
   selectImage: () => ipcRenderer.invoke('dialog:selectImage'),

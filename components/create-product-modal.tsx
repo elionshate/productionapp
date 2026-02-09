@@ -24,6 +24,7 @@ export default function CreateProductModal({
   isOpen, onClose, onCreated, existingCategories,
 }: CreateProductModalProps) {
   const [serialNumber, setSerialNumber] = useState('');
+  const [label, setLabel] = useState('');
   const [category, setCategory] = useState('');
   const [customCategory, setCustomCategory] = useState('');
   const [unitsPerBox, setUnitsPerBox] = useState('1');
@@ -35,6 +36,7 @@ export default function CreateProductModal({
 
   function resetForm() {
     setSerialNumber('');
+    setLabel('');
     setCategory('');
     setCustomCategory('');
     setUnitsPerBox('1');
@@ -95,6 +97,7 @@ export default function CreateProductModal({
       const result = await window.electron.createProduct({
         serialNumber: serialNumber.trim(),
         category: finalCategory,
+        label: label.trim(),
         unitsPerBox: Number(unitsPerBox),
         imageUrl: imageDataUrl,
       });
@@ -178,6 +181,16 @@ export default function CreateProductModal({
                 className="w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
               />
             </div>
+          </div>
+
+          {/* Label */}
+          <div>
+            <label className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">Label</label>
+            <input
+              type="text" value={label} onChange={(e) => setLabel(e.target.value)}
+              placeholder="e.g. Premium Red Bucket"
+              className="w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+            />
           </div>
 
           {/* Row 2: Category + Units/Box */}
