@@ -8,8 +8,8 @@
   "publish": [
     {
       "provider": "github",
-      "owner": "elionshate",
-      "repo": "productionapp"
+      "owner": "OWNER",
+      "repo": "REPO"
     }
   ],
   "files": [
