@@ -91,6 +91,19 @@ npm run build:electron
 npm run electron:build
 ```
 
+### Publishing a Release
+
+The repository is configured for automated publishing to GitHub Releases:
+
+```bash
+# Update version in package.json
+# Then create and push a tag
+git tag v0.2.1
+git push origin v0.2.1
+```
+
+GitHub Actions will automatically build and publish the release. See `RELEASE_SETUP.md` for configuration details.
+
 ## 📁 Project Structure
 
 ```
@@ -216,6 +229,7 @@ Strict rules for TypeScript, accessibility, unused variables
 - **Architectural Log**: See `@agent_logs.md` for all decisions
 - **Feature Guidelines**: See `features/README.md`
 - **UI Guidelines**: See `components/ui/README.md`
+- **Release Setup**: See `RELEASE_SETUP.md` for automated publishing configuration
 
 ## ❓ Frequently Asked Questions
 
