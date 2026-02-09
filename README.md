@@ -17,7 +17,38 @@ A production-grade, cross-platform desktop application for **Production, Orders,
 ✅ **Secure IPC**: Context isolation, sandboxed renderer process  
 ✅ **Feature-Sliced**: Scalable domain-driven architecture
 
-## 🚀 Quick Start
+## 📥 For End Users - Download & Run
+
+### Quick Install (No Extra Downloads Required!)
+
+**The installer is completely self-contained** - you don't need to install Node.js, databases, or any other dependencies.
+
+1. **Download** the latest release from the [Releases page](https://github.com/elionshate/productionapp/releases)
+   - Windows: `Production.Management-Setup-X.X.X.exe` (~178MB)
+   - macOS: `Production.Management-X.X.X.dmg` (coming soon)
+   - Linux: `Production.Management-X.X.X.AppImage` (coming soon)
+
+2. **Install & Run**
+   - Windows: Double-click the `.exe` installer and follow the setup wizard
+   - The app will automatically create its database on first launch
+   - Everything you need is bundled inside the installer!
+
+### System Requirements
+- **Windows**: Windows 10 or later (64-bit)
+- **macOS**: macOS 10.13 or later (coming soon)
+- **Linux**: Modern distribution with GLIBC 2.28+ (coming soon)
+- **Disk Space**: ~200MB for installation
+- **RAM**: 4GB minimum recommended
+
+### What's Included?
+✅ Complete Electron application  
+✅ Embedded SQLite database (auto-created on first run)  
+✅ All runtime dependencies  
+✅ No internet connection required after installation  
+
+---
+
+## 🚀 For Developers - Build from Source
 
 ### Prerequisites
 - Node.js 20+ and npm
@@ -185,6 +216,87 @@ Strict rules for TypeScript, accessibility, unused variables
 - **Architectural Log**: See `@agent_logs.md` for all decisions
 - **Feature Guidelines**: See `features/README.md`
 - **UI Guidelines**: See `components/ui/README.md`
+
+## ❓ Frequently Asked Questions
+
+### For End Users
+
+**Q: Do I need to install Node.js or any database software?**  
+A: **No!** The installer is completely self-contained. Everything you need is bundled inside.
+
+**Q: Does the app require internet access?**  
+A: **No** - after installation, the app works 100% offline. Your data stays on your computer.
+
+**Q: Where is my data stored?**  
+A: The SQLite database is stored in your user data directory:
+- Windows: `%APPDATA%/Production Management/production.db`
+- macOS: `~/Library/Application Support/Production Management/production.db` (coming soon)
+- Linux: `~/.config/Production Management/production.db` (coming soon)
+
+**Q: Is my data backed up?**  
+A: The app stores data locally only. We recommend backing up your database file regularly to prevent data loss.
+
+**Q: Can I use this on multiple computers?**  
+A: Yes! Each installation creates its own local database. In the future, migration to a shared cloud database (Supabase) will be supported.
+
+### For Developers
+
+**Q: What's included in the packaged release?**  
+A: The Electron installer bundles:
+- Complete Next.js static export (`out/` directory)
+- Compiled Electron main process (`dist/main/`)
+- All Node.js dependencies (`node_modules/`)
+- Prisma client (`.prisma/` folder)
+- Better-sqlite3 native binaries (unpacked for SQLite access)
+- Database schema (auto-created on first run via embedded SQL)
+
+**Q: How does the database get created?**  
+A: On first launch, the Electron main process runs `initializeDatabase()` which executes raw SQL to create all tables. No Prisma CLI is needed in production. See `main/index.ts` for implementation details.
+
+**Q: Why use CUID instead of auto-increment IDs?**  
+A: CUIDs (Collision-resistant Unique IDentifiers) prevent ID conflicts when merging multiple local databases into a central database (e.g., migrating to Supabase). Auto-increment IDs would create duplicate keys.
+
+## 🐛 Troubleshooting
+
+### For End Users
+
+**App won't start on Windows**
+- Ensure you have Windows 10 or later (64-bit)
+- Try running the installer as Administrator
+- Check Windows Defender isn't blocking the app
+- Look for error logs in `%APPDATA%/Production Management/logs/`
+
+**Database errors on first launch**
+- The app needs write permissions to your user data folder
+- On Windows, ensure the installer has proper permissions
+- Try deleting `production.db` and restarting the app to recreate the database
+
+**Installation is slow**
+- The installer is ~178MB and includes many bundled dependencies
+- First launch may take 10-20 seconds while the database is created
+- Subsequent launches will be faster
+
+### For Developers
+
+**"Cannot find module '@prisma/client'"**
+```bash
+npm run prisma:generate
+```
+
+**Database migration issues**
+```bash
+# Reset development database
+rm dev.db
+npm run prisma:migrate
+```
+
+**Build fails on electron:build**
+```bash
+# Ensure all dependencies are installed
+npm install
+# Rebuild native modules for Electron
+npm rebuild better-sqlite3 --runtime=electron --target=40.0.0
+```
 
 ## 📄 License
 
