@@ -51,7 +51,7 @@ On the first launch:
 - **Display**: 1280×720 minimum resolution
 
 ### macOS (Coming Soon)
-- **OS**: macOS 10.13 (High Sierra) or later
+- **OS**: macOS 10.15 (Catalina) or later
 - **Processor**: Intel or Apple Silicon
 - **RAM**: 4GB minimum, 8GB recommended
 - **Disk Space**: 200MB for installation

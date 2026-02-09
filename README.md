@@ -35,7 +35,7 @@ A production-grade, cross-platform desktop application for **Production, Orders,
 
 ### System Requirements
 - **Windows**: Windows 10 or later (64-bit)
-- **macOS**: macOS 10.13 or later (coming soon)
+- **macOS**: macOS 10.15 (Catalina) or later (coming soon)
 - **Linux**: Modern distribution with GLIBC 2.28+ (coming soon)
 - **Disk Space**: ~200MB for installation
 - **RAM**: 4GB minimum recommended
