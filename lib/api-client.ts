@@ -143,6 +143,12 @@ export const createOrder = (data: {
 }) => post('/orders', data);
 export const updateOrder = (id: string, data: { status?: string; notes?: string }) =>
   put(`/orders/${id}`, data);
+export const addOrderItem = (orderId: string, data: { productId: string; boxesNeeded: number }) =>
+  post(`/orders/${orderId}/items`, data);
+export const updateOrderItem = (itemId: string, data: { boxesNeeded: number }) =>
+  put(`/orders/items/${itemId}`, data);
+export const removeOrderItem = (itemId: string) =>
+  del(`/orders/items/${itemId}`);
 export const deleteOrder = (id: string) => del(`/orders/${id}`);
 export const checkMaterialAvailability = (orderId: string) =>
   get(`/orders/${orderId}/material-check`);

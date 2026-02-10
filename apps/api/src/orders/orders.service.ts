@@ -357,6 +357,80 @@ export class OrdersService {
     return serialize(result);
   }
 
+  async addOrderItem(orderId: string, data: { productId: string; boxesNeeded: number }) {
+    const order = await this.prisma.order.findUnique({ where: { id: orderId } });
+    if (!order) throw new BadRequestException('Order not found');
+    if (order.status === 'shipped') throw new BadRequestException('Cannot modify a shipped order');
+
+    // Check duplicate
+    const existing = await this.prisma.orderItem.findFirst({
+      where: { orderId, productId: data.productId },
+    });
+    if (existing) throw new BadRequestException('This product is already in the order');
+
+    const itemId = crypto.randomUUID();
+    await this.prisma.$executeRaw`
+      INSERT INTO order_items (id, order_id, product_id, boxes_needed, created_at)
+      VALUES (${itemId}, ${orderId}, ${data.productId}, ${data.boxesNeeded}, datetime('now'))
+    `;
+
+    const updatedOrder = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: this.defaultInclude,
+    });
+    return serialize(updatedOrder);
+  }
+
+  async removeOrderItem(orderItemId: string) {
+    const item = await this.prisma.orderItem.findUnique({
+      where: { id: orderItemId },
+      include: { order: true },
+    });
+    if (!item) throw new BadRequestException('Order item not found');
+    if (item.order.status === 'shipped') throw new BadRequestException('Cannot modify a shipped order');
+
+    // Delete related manufacturing data for this product in this order
+    await this.prisma.$transaction(async (tx) => {
+      const mfgOrders = await tx.manufacturingOrder.findMany({
+        where: { orderId: item.orderId, productId: item.productId },
+      });
+      for (const mfg of mfgOrders) {
+        await tx.materialRequirement.deleteMany({ where: { manufacturingOrderId: mfg.id } });
+      }
+      await tx.manufacturingOrder.deleteMany({
+        where: { orderId: item.orderId, productId: item.productId },
+      });
+      await tx.orderItem.delete({ where: { id: orderItemId } });
+    });
+
+    const updatedOrder = await this.prisma.order.findUnique({
+      where: { id: item.orderId },
+      include: this.defaultInclude,
+    });
+    return serialize(updatedOrder);
+  }
+
+  async updateOrderItem(orderItemId: string, data: { boxesNeeded: number }) {
+    const item = await this.prisma.orderItem.findUnique({
+      where: { id: orderItemId },
+      include: { order: true },
+    });
+    if (!item) throw new BadRequestException('Order item not found');
+    if (item.order.status === 'shipped') throw new BadRequestException('Cannot modify a shipped order');
+    if (data.boxesNeeded < 1) throw new BadRequestException('Boxes needed must be at least 1');
+
+    await this.prisma.orderItem.update({
+      where: { id: orderItemId },
+      data: { boxesNeeded: data.boxesNeeded },
+    });
+
+    const updatedOrder = await this.prisma.order.findUnique({
+      where: { id: item.orderId },
+      include: this.defaultInclude,
+    });
+    return serialize(updatedOrder);
+  }
+
   async delete(id: string) {
     await this.prisma.$transaction(async (tx) => {
       await tx.materialRequirement.deleteMany({ where: { manufacturingOrder: { orderId: id } } });

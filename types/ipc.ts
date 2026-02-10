@@ -394,6 +394,9 @@ export interface ElectronAPI {
   getOrderById: (id: string) => Promise<IPCResponse<OrderResponse | null>>;
   createOrder: (data: CreateOrderDTO) => Promise<IPCResponse<OrderResponse>>;
   updateOrder: (id: string, data: UpdateOrderDTO) => Promise<IPCResponse<OrderResponse>>;
+  addOrderItem: (orderId: string, data: { productId: string; boxesNeeded: number }) => Promise<IPCResponse<OrderResponse>>;
+  updateOrderItem: (itemId: string, data: { boxesNeeded: number }) => Promise<IPCResponse<OrderResponse>>;
+  removeOrderItem: (itemId: string) => Promise<IPCResponse<OrderResponse>>;
   deleteOrder: (id: string) => Promise<IPCResponse<{ id: string }>>;
   checkMaterialAvailability: (orderId: string) => Promise<IPCResponse<{
     shortages: Array<{

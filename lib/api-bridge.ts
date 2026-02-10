@@ -51,6 +51,9 @@ export function initializeApiBridge() {
     getOrderById: (id: string) => api.getOrderById(id),
     createOrder: (data: any) => api.createOrder(data),
     updateOrder: (id: string, data: any) => api.updateOrder(id, data),
+    addOrderItem: (orderId: string, data: { productId: string; boxesNeeded: number }) => api.addOrderItem(orderId, data),
+    updateOrderItem: (itemId: string, data: { boxesNeeded: number }) => api.updateOrderItem(itemId, data),
+    removeOrderItem: (itemId: string) => api.removeOrderItem(itemId),
     deleteOrder: (id: string) => api.deleteOrder(id),
     checkMaterialAvailability: (orderId: string) => api.checkMaterialAvailability(orderId),
 

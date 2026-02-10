@@ -40,6 +40,30 @@ export class OrdersController {
     return { success: true, data };
   }
 
+  @Post(':id/items')
+  async addOrderItem(
+    @Param('id') id: string,
+    @Body() body: { productId: string; boxesNeeded: number },
+  ) {
+    const data = await this.ordersService.addOrderItem(id, body);
+    return { success: true, data };
+  }
+
+  @Put('items/:itemId')
+  async updateOrderItem(
+    @Param('itemId') itemId: string,
+    @Body() body: { boxesNeeded: number },
+  ) {
+    const data = await this.ordersService.updateOrderItem(itemId, body);
+    return { success: true, data };
+  }
+
+  @Delete('items/:itemId')
+  async removeOrderItem(@Param('itemId') itemId: string) {
+    const data = await this.ordersService.removeOrderItem(itemId);
+    return { success: true, data };
+  }
+
   @Delete(':id')
   async delete(@Param('id') id: string) {
     const data = await this.ordersService.delete(id);
