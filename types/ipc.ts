@@ -140,6 +140,17 @@ export interface AssemblyProductEntry {
   unitsPerBox: number;
 }
 
+// Excess assembly potential
+export interface ExcessAssemblyData {
+  productId: string;
+  serialNumber: string;
+  label: string;
+  imageUrl: string | null;
+  category: string;
+  excessBoxes: number;
+  locked: boolean; // true if product still has unfinished assembly in existing orders
+}
+
 // Aggregated element data for Production tab (grouped by element per order)
 export interface ProductionElementGroup {
   elementId: string;
@@ -383,6 +394,16 @@ export interface ElectronAPI {
   createOrder: (data: CreateOrderDTO) => Promise<IPCResponse<OrderResponse>>;
   updateOrder: (id: string, data: UpdateOrderDTO) => Promise<IPCResponse<OrderResponse>>;
   deleteOrder: (id: string) => Promise<IPCResponse<{ id: string }>>;
+  checkMaterialAvailability: (orderId: string) => Promise<IPCResponse<{
+    shortages: Array<{
+      materialName: string;
+      unit: string;
+      totalNeeded: number;
+      currentStock: number;
+      shortage: number;
+    }>;
+    sufficient: boolean;
+  }>>;
 
   // ========== MANUFACTURING ==========
   getManufacturingOrders: () => Promise<IPCResponse<ManufacturingOrderResponse[]>>;
@@ -402,6 +423,8 @@ export interface ElectronAPI {
   // ========== ASSEMBLY ==========
   getAssemblyOrders: () => Promise<IPCResponse<AssemblyOrderData[]>>;
   recordAssembly: (data: RecordAssemblyDTO) => Promise<IPCResponse<{ boxesAssembled: number; remaining: number }>>;
+  getExcessAssembly: () => Promise<IPCResponse<ExcessAssemblyData[]>>;
+  recordExcessAssembly: (data: { productId: string; boxes: number }) => Promise<IPCResponse<{ productId: string; stockBoxedAmount: number }>>;
 
   // ========== STOCK ORDERS ==========
   getStockOrders: () => Promise<IPCResponse<StockOrderData[]>>;

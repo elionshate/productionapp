@@ -8,6 +8,7 @@ interface ProductionOrderCardProps {
   order: ProductionOrderData;
   onRecordProduction: (orderId: string, elementId: string, amount: number) => Promise<number | null>;
   onPrint?: (orderId: string) => void;
+  onPrintAssembly?: (orderId: string) => void;
 }
 
 function formatDate(date: Date | string): string {
@@ -25,7 +26,7 @@ function formatWeight(grams: number): string {
   return `${grams.toFixed(1)} g`;
 }
 
-export default function ProductionOrderCard({ order, onRecordProduction, onPrint }: ProductionOrderCardProps) {
+export default function ProductionOrderCard({ order, onRecordProduction, onPrint, onPrintAssembly }: ProductionOrderCardProps) {
   return (
     <div className="rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
       {/* Order Header */}
@@ -39,6 +40,17 @@ export default function ProductionOrderCard({ order, onRecordProduction, onPrint
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {onPrintAssembly && (
+            <button
+              onClick={() => onPrintAssembly(order.orderId)}
+              className="rounded-lg border border-zinc-300 bg-white p-1.5 text-zinc-500 transition-colors hover:bg-zinc-50 hover:text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700 dark:hover:text-zinc-200"
+              title="Print assembly sheet"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            </button>
+          )}
           {onPrint && (
             <button
               onClick={() => onPrint(order.orderId)}
