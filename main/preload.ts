@@ -82,6 +82,14 @@ const electronAPI: ElectronAPI = {
   updateElement: (id, data) => ipcRenderer.invoke('elements:update', id, data),
   deleteElement: (id) => ipcRenderer.invoke('elements:delete', id),
 
+  // ========== RAW MATERIALS (STORAGE) ==========
+  getRawMaterials: () => ipcRenderer.invoke('rawMaterials:getAll'),
+  createRawMaterial: (data) => ipcRenderer.invoke('rawMaterials:create', data),
+  updateRawMaterial: (id, data) => ipcRenderer.invoke('rawMaterials:update', id, data),
+  deleteRawMaterial: (id) => ipcRenderer.invoke('rawMaterials:delete', id),
+  adjustRawMaterialStock: (data) => ipcRenderer.invoke('rawMaterials:adjustStock', data),
+  getRawMaterialTransactions: (rawMaterialId) => ipcRenderer.invoke('rawMaterials:getTransactions', rawMaterialId),
+
   // ========== DIALOG ==========
   selectImage: () => ipcRenderer.invoke('dialog:selectImage'),
 

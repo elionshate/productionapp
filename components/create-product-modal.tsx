@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
+import type { RawMaterialResponse } from '../types/ipc';
 
 interface CreateProductModalProps {
   isOpen: boolean;
@@ -33,6 +34,16 @@ export default function CreateProductModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [boxRawMaterialId, setBoxRawMaterialId] = useState('');
+  const [availableMaterials, setAvailableMaterials] = useState<RawMaterialResponse[]>([]);
+
+  useEffect(() => {
+    if (isOpen && window.electron) {
+      window.electron.getRawMaterials().then(r => {
+        if (r.success) setAvailableMaterials(r.data);
+      });
+    }
+  }, [isOpen]);
 
   function resetForm() {
     setSerialNumber('');
@@ -44,6 +55,7 @@ export default function CreateProductModal({
     setError('');
     setIsDragging(false);
     if (fileInputRef.current) fileInputRef.current.value = '';
+    setBoxRawMaterialId('');
   }
 
   async function handleFileSelected(file: File) {
@@ -100,6 +112,7 @@ export default function CreateProductModal({
         label: label.trim(),
         unitsPerBox: Number(unitsPerBox),
         imageUrl: imageDataUrl,
+        boxRawMaterialId: boxRawMaterialId || undefined,
       });
 
       if (!result.success) {
@@ -224,6 +237,23 @@ export default function CreateProductModal({
               placeholder="New category name"
               className="w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
             />
+          )}
+
+          {/* Box Type (Raw Material) */}
+          {availableMaterials.length > 0 && (
+            <div>
+              <label className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">Box Type (for assembly deduction)</label>
+              <select
+                value={boxRawMaterialId}
+                onChange={(e) => setBoxRawMaterialId(e.target.value)}
+                className="w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+              >
+                <option value="">None (no box deduction)</option>
+                {availableMaterials.map(m => (
+                  <option key={m.id} value={m.id}>{m.name} ({m.stockQty.toLocaleString()} {m.unit})</option>
+                ))}
+              </select>
+            </div>
           )}
 
           {/* Submit */}

@@ -65,6 +65,27 @@ export interface CreateInventoryTransactionDTO {
   reason: string;
 }
 
+// ============================================================================
+// RAW MATERIAL DTOs
+// ============================================================================
+
+export interface CreateRawMaterialDTO {
+  name: string;
+  unit: string; // g, kg, units, meters, liters, etc.
+  stockQty?: number;
+}
+
+export interface UpdateRawMaterialDTO {
+  name?: string;
+  unit?: string;
+}
+
+export interface AdjustRawMaterialStockDTO {
+  rawMaterialId: string;
+  changeAmount: number; // positive = add, negative = deduct
+  reason?: string;
+}
+
 export interface RecordProductionDTO {
   orderId: string;
   elementId: string;
@@ -151,6 +172,7 @@ export interface CreateProductDTO {
   label?: string;
   unitsPerAssembly?: number;
   unitsPerBox: number;
+  boxRawMaterialId?: string | null;
   imageUrl: string;
 }
 
@@ -159,6 +181,7 @@ export interface UpdateProductDTO {
   category?: string;
   label?: string;
   unitsPerBox?: number;
+  boxRawMaterialId?: string | null;
   imageUrl?: string;
 }
 
@@ -180,6 +203,7 @@ export interface CreateElementDTO {
   color2?: string | null;
   isDualColor?: boolean;
   material: string;
+  rawMaterialId?: string | null;
   weightGrams: number;
   imageUrl?: string;
 }
@@ -191,6 +215,7 @@ export interface UpdateElementDTO {
   color2?: string | null;
   isDualColor?: boolean;
   material?: string;
+  rawMaterialId?: string | null;
   weightGrams?: number;
   imageUrl?: string | null;
 }
@@ -227,9 +252,11 @@ export interface ProductResponse {
   label: string;
   unitsPerAssembly: number;
   unitsPerBox: number;
+  boxRawMaterialId: string | null;
   imageUrl: string | null;
   createdAt: Date;
   productElements?: ProductElementResponse[];
+  boxRawMaterial?: RawMaterialResponse | null;
 }
 
 export interface ProductElementResponse {
@@ -270,9 +297,11 @@ export interface ElementResponse {
   color2: string | null;
   isDualColor: boolean;
   material: string;
+  rawMaterialId: string | null;
   weightGrams: number;
   imageUrl: string | null;
   createdAt: Date;
+  rawMaterial?: RawMaterialResponse | null;
 }
 
 export interface InventoryResponse {
@@ -298,6 +327,27 @@ export interface InventoryTransactionResponse {
   reason: string;
   createdAt: Date;
   element?: ElementResponse;
+}
+
+// ============================================================================
+// RAW MATERIAL RESPONSES
+// ============================================================================
+
+export interface RawMaterialResponse {
+  id: string;
+  name: string;
+  unit: string;
+  stockQty: number;
+  createdAt: Date;
+}
+
+export interface RawMaterialTransactionResponse {
+  id: string;
+  rawMaterialId: string;
+  changeAmount: number;
+  reason: string;
+  createdAt: Date;
+  rawMaterial?: RawMaterialResponse;
 }
 
 // ============================================================================
@@ -382,6 +432,14 @@ export interface ElectronAPI {
   createElement: (data: CreateElementDTO) => Promise<IPCResponse<ElementResponse>>;
   updateElement: (id: string, data: UpdateElementDTO) => Promise<IPCResponse<ElementResponse>>;
   deleteElement: (id: string) => Promise<IPCResponse<{ id: string }>>;
+
+  // ========== RAW MATERIALS (STORAGE) ==========
+  getRawMaterials: () => Promise<IPCResponse<RawMaterialResponse[]>>;
+  createRawMaterial: (data: CreateRawMaterialDTO) => Promise<IPCResponse<RawMaterialResponse>>;
+  updateRawMaterial: (id: string, data: UpdateRawMaterialDTO) => Promise<IPCResponse<RawMaterialResponse>>;
+  deleteRawMaterial: (id: string) => Promise<IPCResponse<{ id: string }>>;
+  adjustRawMaterialStock: (data: AdjustRawMaterialStockDTO) => Promise<IPCResponse<RawMaterialResponse>>;
+  getRawMaterialTransactions: (rawMaterialId?: string) => Promise<IPCResponse<RawMaterialTransactionResponse[]>>;
 
   // ========== DIALOG ==========
   selectImage: () => Promise<IPCResponse<string | null>>;

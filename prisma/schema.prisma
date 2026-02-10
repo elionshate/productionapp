@@ -32,19 +32,49 @@ model User {
 // STATIC DATA (Catalog)
 // ============================================================================
 
-model Element {
-  id          String   @id @default(cuid())
-  uniqueName  String   @map("unique_name")          // Element category/name (e.g., "Bucket", "Lid")
-  label       String   @default("") @map("label")   // Optional unique label for element identification
-  color       String                                 // Primary color (e.g., "Red")
-  color2      String?  @map("color_2")               // Optional second color for dual-color elements
-  isDualColor Boolean  @default(false) @map("is_dual_color") // When true, production quantity is halved
-  material    String
-  weightGrams Decimal  @default(0) @map("weight_grams") // Used to calculate total weight in pick lists
-  imageUrl    String?  @map("image_url")
-  createdAt   DateTime @default(now()) @map("created_at")
+model RawMaterial {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  unit      String   @default("g") // g, kg, units, meters, liters, etc.
+  stockQty  Float    @default(0) @map("stock_qty") // Current quantity in storage
+  createdAt DateTime @default(now()) @map("created_at")
 
   // Relations
+  elements             Element[]              // Elements made from this material
+  packagingForProducts Product[]              @relation("ProductBoxMaterial")
+  transactions         RawMaterialTransaction[]
+
+  @@map("raw_materials")
+}
+
+model RawMaterialTransaction {
+  id            String   @id @default(cuid())
+  rawMaterialId String   @map("raw_material_id")
+  changeAmount  Float    @map("change_amount") // positive = added, negative = consumed
+  reason        String
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  // Relations
+  rawMaterial RawMaterial @relation(fields: [rawMaterialId], references: [id], onDelete: Cascade)
+
+  @@map("raw_material_transactions")
+}
+
+model Element {
+  id            String   @id @default(cuid())
+  uniqueName    String   @map("unique_name")          // Element category/name (e.g., "Bucket", "Lid")
+  label         String   @default("") @map("label")   // Optional unique label for element identification
+  color         String                                 // Primary color (e.g., "Red")
+  color2        String?  @map("color_2")               // Optional second color for dual-color elements
+  isDualColor   Boolean  @default(false) @map("is_dual_color") // When true, production quantity is halved
+  material      String                                 // Display material name (auto-filled from raw material)
+  rawMaterialId String?  @map("raw_material_id")       // Links to raw material for stock deduction
+  weightGrams   Decimal  @default(0) @map("weight_grams") // Weight per unit in grams (consumption rate)
+  imageUrl      String?  @map("image_url")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  // Relations
+  rawMaterial           RawMaterial?         @relation(fields: [rawMaterialId], references: [id], onDelete: SetNull)
   productElements       ProductElement[]
   inventory             Inventory[]
   inventoryTransactions InventoryTransaction[]
@@ -60,10 +90,12 @@ model Product {
   label             String   @default("")                    // User-defined text label displayed on product card
   unitsPerAssembly  Int      @default(1) @map("units_per_assembly") // How many finished units per assembly batch
   unitsPerBox       Int      @default(1) @map("units_per_box")      // How many finished units per shippable box
+  boxRawMaterialId  String?  @map("box_raw_material_id")            // Box type needed for shipping this product
   imageUrl          String?  @map("image_url")
   createdAt         DateTime @default(now()) @map("created_at")
 
   // Relations
+  boxRawMaterial      RawMaterial?         @relation("ProductBoxMaterial", fields: [boxRawMaterialId], references: [id], onDelete: SetNull)
   productElements     ProductElement[]
   productStock        ProductStock?
   orderItems          OrderItem[]

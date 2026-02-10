@@ -71,7 +71,7 @@ async function initializeDatabase() {
     rawDb.pragma('foreign_keys = ON');
 
     // Schema versioning: bump this number whenever the embedded SCHEMA_SQL changes
-    const CURRENT_SCHEMA_VERSION = 2; // v2: color refactor + labels + shipped_at
+    const CURRENT_SCHEMA_VERSION = 3; // v3: raw materials + storage
 
     // Check if schema already exists by looking for the users table
     const tableCheck = rawDb.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='users'").get();
@@ -140,6 +140,24 @@ CREATE TABLE IF NOT EXISTS "users" (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS "users_username_key" ON "users"("username");
 
+CREATE TABLE IF NOT EXISTS "raw_materials" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "name" TEXT NOT NULL,
+    "unit" TEXT NOT NULL DEFAULT 'g',
+    "stock_qty" REAL NOT NULL DEFAULT 0,
+    "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "raw_materials_name_key" ON "raw_materials"("name");
+
+CREATE TABLE IF NOT EXISTS "raw_material_transactions" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "raw_material_id" TEXT NOT NULL,
+    "change_amount" REAL NOT NULL,
+    "reason" TEXT NOT NULL,
+    "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "raw_material_transactions_raw_material_id_fkey" FOREIGN KEY ("raw_material_id") REFERENCES "raw_materials" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS "elements" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "unique_name" TEXT NOT NULL,
@@ -148,9 +166,11 @@ CREATE TABLE IF NOT EXISTS "elements" (
     "color_2" TEXT,
     "is_dual_color" BOOLEAN NOT NULL DEFAULT 0,
     "material" TEXT NOT NULL,
+    "raw_material_id" TEXT,
     "weight_grams" DECIMAL NOT NULL DEFAULT 0,
     "image_url" TEXT,
-    "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "elements_raw_material_id_fkey" FOREIGN KEY ("raw_material_id") REFERENCES "raw_materials" ("id") ON DELETE SET NULL ON UPDATE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS "products" (
@@ -160,8 +180,10 @@ CREATE TABLE IF NOT EXISTS "products" (
     "label" TEXT NOT NULL DEFAULT '',
     "units_per_assembly" INTEGER NOT NULL DEFAULT 1,
     "units_per_box" INTEGER NOT NULL DEFAULT 1,
+    "box_raw_material_id" TEXT,
     "image_url" TEXT,
-    "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "products_box_raw_material_id_fkey" FOREIGN KEY ("box_raw_material_id") REFERENCES "raw_materials" ("id") ON DELETE SET NULL ON UPDATE CASCADE
 );
 CREATE UNIQUE INDEX IF NOT EXISTS "products_serial_number_key" ON "products"("serial_number");
 
@@ -1183,7 +1205,7 @@ ipcMain.handle('production:recordProduction', async (_event, data: RecordProduct
       if (remainingToDistribute <= 0) break;
     }
 
-    // Add to inventory
+    // Add to inventory + deduct raw materials
     await prisma.$transaction(async (tx) => {
       // Create inventory transaction record
       await tx.inventoryTransaction.create({
@@ -1207,6 +1229,27 @@ ipcMain.handle('production:recordProduction', async (_event, data: RecordProduct
           totalAmount: { increment: amountProduced },
         },
       });
+
+      // Deduct raw materials from storage
+      const element = await tx.element.findUnique({
+        where: { id: elementId },
+        include: { rawMaterial: true },
+      });
+      if (element?.rawMaterialId && element.rawMaterial) {
+        const weightG = Number(element.weightGrams);
+        const deductAmount = amountProduced * weightG;
+        await tx.rawMaterial.update({
+          where: { id: element.rawMaterialId },
+          data: { stockQty: { decrement: deductAmount } },
+        });
+        await tx.rawMaterialTransaction.create({
+          data: {
+            rawMaterialId: element.rawMaterialId,
+            changeAmount: -deductAmount,
+            reason: `Production: ${amountProduced} × ${element.uniqueName} (${weightG}g each)`,
+          },
+        });
+      }
     });
 
     // Calculate new remaining total for this element in this order
@@ -1394,6 +1437,21 @@ ipcMain.handle('assembly:record', async (_event, data: { orderId: string; produc
           },
         });
       }
+
+      // Deduct box raw material from storage
+      if (product.boxRawMaterialId) {
+        await tx.rawMaterial.update({
+          where: { id: product.boxRawMaterialId },
+          data: { stockQty: { decrement: boxesAssembled } },
+        });
+        await tx.rawMaterialTransaction.create({
+          data: {
+            rawMaterialId: product.boxRawMaterialId,
+            changeAmount: -boxesAssembled,
+            reason: `Assembly: ${boxesAssembled} box(es) for ${product.serialNumber}`,
+          },
+        });
+      }
     });
 
     return {
@@ -1573,6 +1631,7 @@ ipcMain.handle('products:getAll', async (): Promise<IPCResponse<any[]>> => {
           },
         },
         productStock: true,
+        boxRawMaterial: true,
       },
       orderBy: { serialNumber: 'asc' },
     });
@@ -1594,6 +1653,7 @@ ipcMain.handle('products:getById', async (_event, id: string): Promise<IPCRespon
           },
         },
         productStock: true,
+        boxRawMaterial: true,
       },
     });
     return { success: true, data: serialize(product) };
@@ -1613,6 +1673,7 @@ ipcMain.handle('products:create', async (_event, data: CreateProductDTO): Promis
         unitsPerAssembly: data.unitsPerAssembly ?? 1,
         unitsPerBox: data.unitsPerBox,
         imageUrl: data.imageUrl,
+        boxRawMaterialId: data.boxRawMaterialId ?? null,
       },
     });
     return { success: true, data: product };
@@ -1706,6 +1767,7 @@ ipcMain.handle('productStock:getById', async (_event, productId: string): Promis
 ipcMain.handle('elements:getAll', async (): Promise<IPCResponse<any[]>> => {
   try {
     const elements = await prisma.element.findMany({
+      include: { rawMaterial: true },
       orderBy: { uniqueName: 'asc' },
     });
     return { success: true, data: serialize(elements) };
@@ -1727,7 +1789,9 @@ ipcMain.handle('elements:create', async (_event, data: CreateElementDTO): Promis
         material: data.material,
         weightGrams: data.weightGrams,
         imageUrl: data.imageUrl,
+        rawMaterialId: data.rawMaterialId ?? null,
       },
+      include: { rawMaterial: true },
     });
     return { success: true, data: serialize(element) };
   } catch (error) {
@@ -1749,7 +1813,9 @@ ipcMain.handle('elements:update', async (_event, id: string, data: UpdateElement
         material: data.material,
         weightGrams: data.weightGrams,
         imageUrl: data.imageUrl,
+        rawMaterialId: data.rawMaterialId,
       },
+      include: { rawMaterial: true },
     });
     return { success: true, data: serialize(element) };
   } catch (error) {
@@ -1790,12 +1856,14 @@ ipcMain.handle('products:update', async (_event, id: string, data: UpdateProduct
         label: data.label,
         unitsPerBox: data.unitsPerBox,
         imageUrl: data.imageUrl,
+        boxRawMaterialId: data.boxRawMaterialId,
       },
       include: {
         productElements: {
           include: { element: true },
         },
         productStock: true,
+        boxRawMaterial: true,
       },
     });
     return { success: true, data: serialize(product) };
@@ -1853,6 +1921,117 @@ ipcMain.handle('products:removeElement', async (_event, id: string): Promise<IPC
     return { success: true, data: { id } };
   } catch (error) {
     console.error('[IPC] products:removeElement failed:', error);
+    return { success: false, error: String(error) };
+  }
+});
+
+// ========== RAW MATERIALS (STORAGE) ==========
+
+ipcMain.handle('rawMaterials:getAll', async (): Promise<IPCResponse<any[]>> => {
+  try {
+    const materials = await prisma.rawMaterial.findMany({
+      orderBy: { name: 'asc' },
+    });
+    return { success: true, data: serialize(materials) };
+  } catch (error) {
+    console.error('[IPC] rawMaterials:getAll failed:', error);
+    return { success: false, error: String(error) };
+  }
+});
+
+ipcMain.handle('rawMaterials:create', async (_event, data: { name: string; unit: string }): Promise<IPCResponse<any>> => {
+  try {
+    const material = await prisma.rawMaterial.create({
+      data: {
+        name: data.name,
+        unit: data.unit ?? 'g',
+        stockQty: 0,
+      },
+    });
+    return { success: true, data: serialize(material) };
+  } catch (error: any) {
+    console.error('[IPC] rawMaterials:create failed:', error);
+    if (error?.code === 'P2002') {
+      return { success: false, error: `A raw material named "${data.name}" already exists.` };
+    }
+    return { success: false, error: String(error) };
+  }
+});
+
+ipcMain.handle('rawMaterials:update', async (_event, id: string, data: { name?: string; unit?: string }): Promise<IPCResponse<any>> => {
+  try {
+    const material = await prisma.rawMaterial.update({
+      where: { id },
+      data: {
+        name: data.name,
+        unit: data.unit,
+      },
+    });
+    return { success: true, data: serialize(material) };
+  } catch (error: any) {
+    console.error('[IPC] rawMaterials:update failed:', error);
+    if (error?.code === 'P2002') {
+      return { success: false, error: `A raw material named "${data.name}" already exists.` };
+    }
+    return { success: false, error: String(error) };
+  }
+});
+
+ipcMain.handle('rawMaterials:delete', async (_event, id: string): Promise<IPCResponse<{ id: string }>> => {
+  try {
+    // Check if any elements or products reference this raw material
+    const elementCount = await prisma.element.count({ where: { rawMaterialId: id } });
+    const productCount = await prisma.product.count({ where: { boxRawMaterialId: id } });
+    if (elementCount > 0 || productCount > 0) {
+      return {
+        success: false,
+        error: `Cannot delete: ${elementCount} element(s) and ${productCount} product(s) still reference this material.`,
+      };
+    }
+    // Delete transactions first, then the material
+    await prisma.rawMaterialTransaction.deleteMany({ where: { rawMaterialId: id } });
+    await prisma.rawMaterial.delete({ where: { id } });
+    return { success: true, data: { id } };
+  } catch (error) {
+    console.error('[IPC] rawMaterials:delete failed:', error);
+    return { success: false, error: String(error) };
+  }
+});
+
+ipcMain.handle('rawMaterials:adjustStock', async (_event, data: { rawMaterialId: string; changeAmount: number; reason?: string }): Promise<IPCResponse<any>> => {
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      const material = await tx.rawMaterial.update({
+        where: { id: data.rawMaterialId },
+        data: { stockQty: { increment: data.changeAmount } },
+      });
+      await tx.rawMaterialTransaction.create({
+        data: {
+          rawMaterialId: data.rawMaterialId,
+          changeAmount: data.changeAmount,
+          reason: data.reason ?? (data.changeAmount >= 0 ? 'Manual stock addition' : 'Manual stock deduction'),
+        },
+      });
+      return material;
+    });
+    return { success: true, data: serialize(result) };
+  } catch (error) {
+    console.error('[IPC] rawMaterials:adjustStock failed:', error);
+    return { success: false, error: String(error) };
+  }
+});
+
+ipcMain.handle('rawMaterials:getTransactions', async (_event, rawMaterialId?: string): Promise<IPCResponse<any[]>> => {
+  try {
+    const transactions = await prisma.rawMaterialTransaction.findMany({
+      where: rawMaterialId ? { rawMaterialId } : undefined,
+      include: { rawMaterial: true },
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+    });
+    return { success: true, data: serialize(transactions) };
+  } catch (error) {
+    console.error('[IPC] rawMaterials:getTransactions failed:', error);
     return { success: false, error: String(error) };
   }
 });
