@@ -1,0 +1,470 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import type { InventoryResponse, AssemblyOrderData, ExcessAssemblyData } from '../../types/ipc';
+import { colorNameToHex } from '../../lib/utils';
+
+export default function InventoryTab() {
+  const [inventory, setInventory] = useState<InventoryResponse[]>([]);
+  const [isLoadingInventory, setIsLoadingInventory] = useState(true);
+  const [assemblyOrders, setAssemblyOrders] = useState<AssemblyOrderData[]>([]);
+  const [isLoadingAssembly, setIsLoadingAssembly] = useState(true);
+  const [excessItems, setExcessItems] = useState<ExcessAssemblyData[]>([]);
+  const [isLoadingExcess, setIsLoadingExcess] = useState(true);
+
+  useEffect(() => {
+    loadInventory();
+    loadAssemblyOrders();
+    loadExcess();
+  }, []);
+
+  async function loadInventory() {
+    if (!window.electron) { setIsLoadingInventory(false); return; }
+    setIsLoadingInventory(true);
+    try {
+      const result = await window.electron.getInventory();
+      if (result.success) {
+        setInventory(result.data.filter((item: InventoryResponse) => item.totalAmount > 0));
+      }
+    } catch (err) {
+      console.error('Failed to load inventory:', err);
+    } finally {
+      setIsLoadingInventory(false);
+    }
+  }
+
+  async function handleDeleteInventory(id: string) {
+    if (!window.electron) return;
+    try {
+      const result = await window.electron.deleteInventory(id);
+      if (result.success) {
+        setInventory(prev => prev.filter(item => item.id !== id));
+      } else {
+        alert(result.error || 'Failed to delete inventory item');
+      }
+    } catch (err) {
+      console.error('Failed to delete inventory:', err);
+    }
+  }
+
+  async function loadAssemblyOrders() {
+    if (!window.electron) { setIsLoadingAssembly(false); return; }
+    setIsLoadingAssembly(true);
+    try {
+      const result = await window.electron.getAssemblyOrders();
+      if (result.success) setAssemblyOrders(result.data);
+    } catch (err) {
+      console.error('Failed to load assembly orders:', err);
+    } finally {
+      setIsLoadingAssembly(false);
+    }
+  }
+
+  async function loadExcess() {
+    if (!window.electron) { setIsLoadingExcess(false); return; }
+    setIsLoadingExcess(true);
+    try {
+      const result = await window.electron.getExcessAssembly();
+      if (result.success) setExcessItems(result.data);
+    } catch (err) {
+      console.error('Failed to load excess assembly:', err);
+    } finally {
+      setIsLoadingExcess(false);
+    }
+  }
+
+  async function handleRecordAssembly(orderId: string, productId: string, boxes: number): Promise<boolean> {
+    if (!window.electron) return false;
+    try {
+      const result = await window.electron.recordAssembly({ orderId, productId, boxesAssembled: boxes });
+      if (result.success) {
+        setAssemblyOrders(prev => prev.map(order => {
+          if (order.orderId !== orderId) return order;
+          return {
+            ...order,
+            products: order.products.map(p => {
+              if (p.productId !== productId) return p;
+              return { ...p, boxesAssembled: result.data.boxesAssembled, remaining: result.data.remaining };
+            }),
+          };
+        }));
+        loadInventory();
+        loadExcess();
+        return true;
+      }
+      if (result.error) alert(result.error);
+      return false;
+    } catch (err) {
+      console.error('Failed to record assembly:', err);
+      return false;
+    }
+  }
+
+  async function handleRecordExcessAssembly(productId: string, boxes: number): Promise<boolean> {
+    if (!window.electron) return false;
+    try {
+      const result = await window.electron.recordExcessAssembly({ productId, boxes });
+      if (result.success) {
+        loadInventory();
+        loadExcess();
+        return true;
+      }
+      if (result.error) alert(result.error);
+      return false;
+    } catch (err) {
+      console.error('Failed to record excess assembly:', err);
+      return false;
+    }
+  }
+
+  function refreshAll() {
+    loadInventory();
+    loadAssemblyOrders();
+    loadExcess();
+  }
+
+  return (
+    <div className="flex flex-1 gap-0 overflow-hidden" style={{ height: 'calc(100vh - 110px)' }}>
+      {/* LEFT: Element Inventory */}
+      <div className="flex-1 overflow-y-auto border-r border-zinc-200 dark:border-zinc-800 p-6">
+        <div className="mb-4 flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Element Inventory</h2>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">Current stock of manufactured elements</p>
+          </div>
+          <button onClick={loadInventory} className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700">Refresh</button>
+        </div>
+
+        {isLoadingInventory ? (
+          <div className="flex items-center justify-center py-16">
+            <div className="text-sm text-zinc-500 dark:text-zinc-400">Loading...</div>
+          </div>
+        ) : inventory.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16">
+            <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">No elements in inventory</p>
+            <p className="mt-1 text-xs text-zinc-400 dark:text-zinc-500">Record production in the Production tab to add elements.</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {inventory.map(item => (
+              <div key={item.id} className="flex items-center gap-4 rounded-xl border border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900">
+                <div className="h-12 w-12 flex-shrink-0 overflow-hidden rounded-lg bg-zinc-100 dark:bg-zinc-700">
+                  {item.element?.imageUrl ? (
+                    <img src={item.element.imageUrl} alt={item.element?.uniqueName} className="h-full w-full object-contain" />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center text-zinc-400 dark:text-zinc-500">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                      </svg>
+                    </div>
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-base font-semibold text-zinc-900 dark:text-zinc-100 truncate">{item.element?.uniqueName ?? 'Unknown'}</p>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <div className="h-4 w-4 rounded-full border border-zinc-300 dark:border-zinc-600 flex-shrink-0" style={{ backgroundColor: colorNameToHex(item.element?.color || '') }} title={item.element?.color} />
+                    <span className="text-sm text-zinc-500 dark:text-zinc-400">{item.element?.color ?? 'Unknown'}</span>
+                    {item.element?.color2 && (
+                      <>
+                        <div className="h-4 w-4 rounded-full border border-zinc-300 dark:border-zinc-600 flex-shrink-0" style={{ backgroundColor: colorNameToHex(item.element.color2) }} title={item.element.color2} />
+                        <span className="text-sm text-zinc-500 dark:text-zinc-400">{item.element.color2}</span>
+                      </>
+                    )}
+                    <span className="text-xs text-zinc-400">·</span>
+                    <span className="text-xs text-zinc-400">{item.element?.material ?? ''}</span>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-3xl font-bold text-zinc-900 dark:text-zinc-100 tabular-nums">{item.totalAmount}</p>
+                  <p className="text-xs text-zinc-400">in stock</p>
+                </div>
+                <button
+                  onClick={() => {
+                    if (confirm(`Delete inventory for ${item.element?.uniqueName ?? 'this element'}? This cannot be undone.`)) {
+                      handleDeleteInventory(item.id);
+                    }
+                  }}
+                  className="flex-shrink-0 rounded-lg p-1.5 text-zinc-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30 dark:hover:text-red-400 transition-colors"
+                  title="Delete inventory (testing)"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* RIGHT: Assembly + Excess */}
+      <div className="w-[420px] flex-shrink-0 overflow-y-auto bg-zinc-100/50 dark:bg-zinc-900/50 p-6">
+        <div className="mb-4 flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Assembly</h2>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">Record boxes assembled today</p>
+          </div>
+          <button onClick={refreshAll} className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700">Refresh</button>
+        </div>
+
+        {isLoadingAssembly ? (
+          <div className="flex items-center justify-center py-16">
+            <div className="text-sm text-zinc-500 dark:text-zinc-400">Loading...</div>
+          </div>
+        ) : assemblyOrders.length === 0 && excessItems.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16">
+            <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">No orders in production</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {assemblyOrders.map(order => (
+              <AssemblyOrderCard key={order.orderId} order={order} onRecordAssembly={handleRecordAssembly} excessItems={excessItems} />
+            ))}
+
+            {/* Excess Assembly Card */}
+            {!isLoadingExcess && excessItems.length > 0 && (
+              <ExcessAssemblyCard items={excessItems} onRecordExcess={handleRecordExcessAssembly} />
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Assembly Order Card ─────────────────────────────────────
+
+function AssemblyOrderCard({
+  order,
+  onRecordAssembly,
+  excessItems,
+}: {
+  order: AssemblyOrderData;
+  onRecordAssembly: (orderId: string, productId: string, boxes: number) => Promise<boolean>;
+  excessItems: ExcessAssemblyData[];
+}) {
+  return (
+    <div className="rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+      <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-2.5 dark:border-zinc-700">
+        <div>
+          <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">Order #{order.orderNumber}</h3>
+          <p className="text-xs text-zinc-500 dark:text-zinc-400">{order.clientName}</p>
+        </div>
+        <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-950/30 dark:text-blue-400">In Production</span>
+      </div>
+      <div className="divide-y divide-zinc-100 dark:divide-zinc-800">
+        {order.products.map(product => {
+          const excess = excessItems.find(e => e.productId === product.productId);
+          return (
+            <div key={product.orderItemId}>
+              <AssemblyProductRow product={product} orderId={order.orderId} onRecordAssembly={onRecordAssembly} />
+              {excess && excess.excessBoxes > 0 && (
+                <div className="mx-4 mb-2 flex items-center gap-1.5 rounded-md bg-amber-50 px-2.5 py-1 text-xs text-amber-700 dark:bg-amber-950/30 dark:text-amber-400">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span>Inventory can assemble <strong>{excess.excessBoxes}</strong> extra box{excess.excessBoxes !== 1 ? 'es' : ''}</span>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── Assembly Product Row ────────────────────────────────────
+
+function AssemblyProductRow({
+  product,
+  orderId,
+  onRecordAssembly,
+}: {
+  product: AssemblyOrderData['products'][0];
+  orderId: string;
+  onRecordAssembly: (orderId: string, productId: string, boxes: number) => Promise<boolean>;
+}) {
+  const [inputValue, setInputValue] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState('');
+  const [localAssembled, setLocalAssembled] = useState(product.boxesAssembled);
+  const localRemaining = product.boxesNeeded - localAssembled;
+  const isDone = localRemaining <= 0;
+  const progress = product.boxesNeeded > 0 ? Math.min(100, (localAssembled / product.boxesNeeded) * 100) : 0;
+
+  async function handleSubmit() {
+    const amount = parseInt(inputValue, 10);
+    if (isNaN(amount) || amount <= 0) { setError('Enter a valid number'); return; }
+    if (amount > localRemaining) { setError(`Max: ${localRemaining}`); return; }
+    setError('');
+    setIsSubmitting(true);
+    try {
+      const ok = await onRecordAssembly(orderId, product.productId, amount);
+      if (ok) { setLocalAssembled(prev => prev + amount); setInputValue(''); }
+      else setError('Failed');
+    } catch { setError('Failed'); }
+    finally { setIsSubmitting(false); }
+  }
+
+  return (
+    <div className="px-4 py-3">
+      <div className="flex items-center gap-3">
+        <div className="h-14 w-14 flex-shrink-0 overflow-hidden rounded-lg bg-zinc-100 dark:bg-zinc-700">
+          {product.imageUrl ? (
+            <img src={product.imageUrl} alt={product.serialNumber} className="h-full w-full object-contain" />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center text-zinc-400">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+              </svg>
+            </div>
+          )}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 truncate">{product.serialNumber}</p>
+          <div className="flex items-center gap-3 mt-1">
+            <span className="text-2xl font-bold tabular-nums text-zinc-900 dark:text-zinc-100">{localAssembled}</span>
+            <span className="text-lg text-zinc-400">/</span>
+            <span className="text-2xl font-bold tabular-nums text-zinc-500 dark:text-zinc-400">{product.boxesNeeded}</span>
+            <span className="text-xs text-zinc-400">boxes</span>
+          </div>
+          <div className="mt-1.5 h-2 w-full rounded-full bg-zinc-200 dark:bg-zinc-700 overflow-hidden">
+            <div className={`h-full rounded-full transition-all duration-300 ${isDone ? 'bg-green-500' : 'bg-blue-500'}`} style={{ width: `${progress}%` }} />
+          </div>
+        </div>
+      </div>
+
+      {!isDone && (
+        <div className="mt-2 flex items-center gap-2 pl-[68px]">
+          <input type="text" inputMode="numeric" pattern="[0-9]*" value={inputValue} onChange={(e) => { const v = e.target.value.replace(/[^0-9]/g, ''); setInputValue(v); setError(''); }} onKeyDown={(e) => e.key === 'Enter' && handleSubmit()} placeholder={`Add (max ${localRemaining})`} className="w-32 rounded-lg border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100" />
+          <button onClick={handleSubmit} disabled={isSubmitting || !inputValue} className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed">
+            {isSubmitting ? '...' : 'Add'}
+          </button>
+          {error && <span className="text-xs text-red-500">{error}</span>}
+        </div>
+      )}
+
+      {isDone && (
+        <div className="mt-2 flex items-center gap-1 pl-[68px] text-sm font-medium text-green-600 dark:text-green-400">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+          </svg>
+          Complete
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Excess Assembly Card ────────────────────────────────────
+
+function ExcessAssemblyCard({
+  items,
+  onRecordExcess,
+}: {
+  items: ExcessAssemblyData[];
+  onRecordExcess: (productId: string, boxes: number) => Promise<boolean>;
+}) {
+  return (
+    <div className="rounded-xl border border-amber-200 bg-amber-50/50 shadow-sm dark:border-amber-900/50 dark:bg-amber-950/20">
+      <div className="flex items-center justify-between border-b border-amber-200 px-4 py-2.5 dark:border-amber-900/50">
+        <div>
+          <h3 className="text-sm font-bold text-amber-800 dark:text-amber-300">Excess Assembly</h3>
+          <p className="text-xs text-amber-600 dark:text-amber-500">Products you can assemble from leftover inventory</p>
+        </div>
+        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-900/40 dark:text-amber-400">
+          {items.length} product{items.length !== 1 ? 's' : ''}
+        </span>
+      </div>
+      <div className="divide-y divide-amber-100 dark:divide-amber-900/30">
+        {items.map(item => (
+          <ExcessProductRow key={item.productId} item={item} onRecordExcess={onRecordExcess} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Excess Product Row ──────────────────────────────────────
+
+function ExcessProductRow({
+  item,
+  onRecordExcess,
+}: {
+  item: ExcessAssemblyData;
+  onRecordExcess: (productId: string, boxes: number) => Promise<boolean>;
+}) {
+  const [inputValue, setInputValue] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  async function handleSubmit() {
+    if (item.locked) return;
+    const amount = parseInt(inputValue, 10);
+    if (isNaN(amount) || amount <= 0) { setError('Enter a valid number'); return; }
+    if (amount > item.excessBoxes) { setError(`Max: ${item.excessBoxes}`); return; }
+    setError('');
+    setIsSubmitting(true);
+    try {
+      const ok = await onRecordExcess(item.productId, amount);
+      if (ok) { setInputValue(''); }
+      else setError('Failed');
+    } catch { setError('Failed'); }
+    finally { setIsSubmitting(false); }
+  }
+
+  return (
+    <div className={`px-4 py-3 ${item.locked ? 'opacity-60' : ''}`}>
+      <div className="flex items-center gap-3">
+        <div className="h-12 w-12 flex-shrink-0 overflow-hidden rounded-lg bg-white dark:bg-zinc-700">
+          {item.imageUrl ? (
+            <img src={item.imageUrl} alt={item.serialNumber} className="h-full w-full object-contain" />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center text-zinc-400">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+              </svg>
+            </div>
+          )}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 truncate">{item.serialNumber}</p>
+          {item.label && (
+            <span className="inline-flex items-center rounded bg-purple-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-purple-700 dark:bg-purple-900/40 dark:text-purple-300 mt-0.5">{item.label}</span>
+          )}
+          {item.locked ? (
+            <div className="flex items-center gap-1 mt-0.5">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400">Finish orders first ({item.excessBoxes} box{item.excessBoxes !== 1 ? 'es' : ''} possible)</p>
+            </div>
+          ) : (
+            <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5 font-medium">
+              Can assemble {item.excessBoxes} box{item.excessBoxes !== 1 ? 'es' : ''}
+            </p>
+          )}
+        </div>
+      </div>
+      {!item.locked && (
+        <div className="mt-2 flex items-center gap-2 pl-[60px]">
+          <input
+            type="text"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            value={inputValue}
+            onChange={(e) => { setInputValue(e.target.value.replace(/[^0-9]/g, '')); setError(''); }}
+            onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
+            placeholder={`Add (max ${item.excessBoxes})`}
+            className="w-32 rounded-lg border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-900 outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+          />
+          <button onClick={handleSubmit} disabled={isSubmitting || !inputValue} className="rounded-lg bg-amber-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed">
+            {isSubmitting ? '...' : 'Add'}
+          </button>
+          {error && <span className="text-xs text-red-500">{error}</span>}
+        </div>
+      )}
+    </div>
+  );
+}
