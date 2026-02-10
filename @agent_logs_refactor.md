@@ -674,3 +674,479 @@ Response: {
 
 ### Status
 **✅ PHASE 8 COMPLETE** — Critical shipping & material management bugs fixed. Stock tab properly filters shipped orders, material shortages are visible before/after order placement, and unit conversion is mathematically correct. App reinstalled with v0.2.3 signed installer.
+
+---
+
+## Phase 9: Assembly UI Overhaul & Validation Enforcement (2026-02-10)
+
+### User Requirements Addressed
+1. **Assembly window shows all orders** — with needed amounts to finish, not just pending ones
+2. **Excess card shows all products** — not just ones in active orders; locked if any unfinished orders exist
+3. **Material shortage prevents production** — orders cannot move to in_production without sufficient raw materials (auto-downgrades to pending with note)
+4. **Cannot ship incomplete orders** — shipping rejected if any product hasn't been fully assembled
+5. **Excess cannot be assembled over unfinished orders** — explicit lock on excess card prevents accidental deductions
+
+### Backend Changes
+
+#### Assembly Service (`apps/api/src/assembly/assembly.service.ts`)
+**getOrders()**
+- Removed `.filter((order) => order.products.some((p) => p.remaining > 0))` 
+- All `in_production` orders now appear, including those with some products completed
+- Frontend can display all orders with their progress toward completion
+
+**getExcessAssembly()**
+- **Rewritten to scan ALL products**, not just active order items
+- Changed from: `product.findMany() within order.orderItems` 
+- Changed to: `product.findMany()` → calculate per-product capacity independently
+- Queries `orderItem.findMany()` separately to check for unfinished assembly
+- For each product, sets `locked: true` if ANY orderItem with that product has `boxesAssembled < boxesNeeded`
+- Result: Excess card shows full inventory potential but respects incomplete orders
+
+#### Orders Service (`apps/api/src/orders/orders.service.ts`)
+**Added `BadRequestException` import** — for shipping/production validation errors
+
+**create() method**
+- Added material availability check before allowing `in_production` status
+- If materials insufficient: auto-downgrades to `pending`, saves shortage note, returns pending order
+- Note format: `⚠️ Pending: Insufficient raw materials — Material1: need X unit, have Y unit; Material2: need Z unit, have W unit`
+- Non-blocking for UI but blocks production start
+
+**update() method**
+- **Shipping validation**: Queries all orderItems, checks `boxesAssembled >= boxesNeeded` for each
+  - If any product incomplete: throws `BadRequestException` with detailed list
+  - Error message: `Cannot ship — not all products fully assembled: Product1: 5/10 boxes assembled, Product2: 0/8 boxes assembled`
+- **Production validation**: Calls `getRawMaterialShortages()` before allowing `in_production` transition
+  - If insufficient: saves shortage note to order AND throws error (prevents transition)
+  - User sees error alert, must restock before retrying
+
+**getRawMaterialShortages() (new private method)**
+- Extracted from `checkMaterialAvailability()` for code reuse in create/update
+- Same logic: aggregates material needs across order items, applies kg/g conversion
+- Returns: `{ shortages, sufficient }`
+
+**checkMaterialAvailability() (public)**
+- Now calls `getRawMaterialShortages()` and serializes result
+- Exposed as GET endpoint for frontend material checks
+
+### Frontend Changes
+
+#### Inventory Tab (`components/features/inventory-tab.tsx`)
+**handleRecordAssembly()**
+- Removed filter: `setAssemblyOrders(prev => updated.filter(order => order.products.some(p => p.remaining > 0)))`
+- Orders stay in list after partial completion
+- Allows user to continue adding to the same order
+
+#### Orders Tab (`components/features/orders-tab.tsx`)
+**handleStartProduction()**
+- Simplified: removed inline material check (backend now enforces)
+- If error (materials insufficient): shows alert and reloads orders
+- User sees pending order with shortage note in orders list
+
+**handleShipOrder()**
+- Added error handling: catches `result.error` and shows alert
+- If backend rejects (incomplete products): displays product-level rejection reason
+
+**handleOrderItemsDone()**
+- Removed material shortage check (backend handles during order create)
+- Just closes modal and reloads
+
+### Validation Flow (Complete)
+
+```
+CREATE ORDER with items as in_production
+ ├─ Backend: checkMaterialAvailability()
+ ├─ Insufficient?
+ │  ├─ Save note with shortage list
+ │  └─ Auto-downgrade to pending
+ └─ Return pending order with note
+
+UPDATE ORDER: pending → in_production
+ ├─ Backend: checkMaterialAvailability()
+ ├─ Insufficient?
+ │  ├─ Save note
+ │  └─ Throw BadRequestException
+ └─ Frontend: Show error alert, reload to show pending with note
+
+UPDATE ORDER: * → shipped
+ ├─ Backend: Check all products boxesAssembled >= boxesNeeded
+ ├─ Any incomplete?
+ │  └─ Throw BadRequestException with details
+ └─ Frontend: Show error alert preventing ship
+
+ASSEMBLY: Record boxes
+ ├─ Order persists in list (not filtered out)
+ ├─ User can continue updating other products
+ └─ All orders visible regardless of completion state
+
+EXCESS: Calculate potential
+ ├─ Query ALL products (not just in orders)
+ ├─ For each: check if ANY orderItem has unfinished assembly
+ ├─ locked: true if unfinished found
+ └─ UI: Disabled input if locked, shows "Finish orders first"
+```
+
+### Files Modified
+
+| File | Changes | Lines |
+|------|---------|-------|
+| `apps/api/src/assembly/assembly.service.ts` | Removed order filter; rewrite getExcessAssembly to scan all products | +30, -40 |
+| `apps/api/src/orders/orders.service.ts` | Added BadRequestException; validate shipping completeness; validate production materials; extract getRawMaterialShortages | +80 |
+| `components/features/inventory-tab.tsx` | Remove filter hiding completed orders | -5 |
+| `components/features/orders-tab.tsx` | Simplify handleStartProduction, add error handling to handleShipOrder, remove inline material check in handleItemsDone | -25 |
+
+### Build & Verification
+✅ TypeScript compilation: All files compile without errors
+✅ Full production build: `npm run build:production` passes (icons + Next.js + API tsc + Electron tsc)
+✅ Installer creation: Production Management-Setup-0.2.3.exe signed and created (233+ MB)
+✅ Installation: App reinstalled on user device, v0.2.3 confirmed
+
+### Key Behavioral Changes for User
+1. **Assembly tab now shows all orders** (not auto-hidden when complete)
+   - Can see 0/5, 3/5, 5/5 in one screen
+   - Continue updating even if some products done
+
+2. **Excess assembly calculated from full product catalog**
+   - Not limited to products in active orders
+   - If product has ANY unfinished boxes in ANY in_production order → locked
+
+3. **Orders auto-pending if materials short**
+   - User sees note explaining shortage
+   - No guessing why production won't start
+
+4. **Cannot ship without full assembly**
+   - Before: silently allowed incomplete shipments
+   - After: explicit error message showing which products incomplete
+
+5. **Cannot over-assemble into excess during active orders**
+   - Excess locked while product has unfinished orders
+   - Prevents accidental stock corruption
+
+### Status
+**✅ PHASE 9 COMPLETE** — Assembly UI fully rewritten, excess card respects order completeness, material validation prevents invalid state transitions, shipping blocked if incomplete. All validations enforced at backend with user-facing error messages. App v0.2.3 installed and ready for testing.
+
+---
+
+## Phase 10: Bug Fixes & Feature Requests (2026-02-10)
+
+**Context**: User tested Phase 9 app and reported:
+1. Cannot edit color of cloned element → clone is missing fields
+2. Check if same bug in products (fix if found)
+3. Add assembly print sheet (requested format/layout)
+4. Add excess stock card to stock tab (permanent, visible)
+5. Auto-deduct excess stock shows remaining amount needed
+
+### Changes Made
+
+#### 1. Element Clone Bug Fix
+**Files**: `components/features/elements-tab.tsx`
+
+**Issue**: `handleCloneElement()` was not passing `rawMaterialId` and `label` to `createElement()`
+- Result: Cloned elements lost these fields
+- User tried to edit cloned element → rawMaterialId was undefined, label was empty
+
+**Fix** (lines 72-73):
+```typescript
+// Added to createElement() call:
+label: element.label || '',
+rawMaterialId: element.rawMaterialId ?? undefined,
+```
+
+**Verification**: Products clone function already copies all fields correctly (no fix needed)
+
+---
+
+#### 2. Assembly Print Sheet Redesign
+**Files**: `components/features/production-tab.tsx` 
+
+**Previous state**: Generic block layout (one product per block)
+
+**New design**:
+- **Standalone function**: Completely separate from production print (no shared logic)
+- **Landscape A4**: Default orientation for wider content
+- **Dynamic table layout**: Serial Number | Product Image | Product Label | Element columns
+- **Dynamic sizing**: Font size, padding, image size, color dot size all adapt to column count
+  - ≤6 cols: 13px font, 48px images, 18px dots
+  - ≤10 cols: 11px font, 40px images, 16px dots
+  - ≤14 cols: 9px font, 32px images, 14px dots
+  - >14 cols: 7px font, 24px images, 12px dots
+- **Column proportions**: Adjust based on total columns (similar to production pivot table)
+
+**Code pattern**:
+```typescript
+const totalCols = fixedCols + allElementIds.length;
+// Calculate fontSize, padding, imgSize based on totalCols
+const snColPct = Math.max(8, Math.round(100 / totalCols * 1.5));
+const imgColPct = Math.max(5, Math.round(100 / totalCols * 0.8));
+// ... build dynamic colgroup and table header/body
+```
+
+**Impact**: Assembly sheet now automatically adapts to any number of products/elements, always fitting on one A4-L page legibly.
+
+---
+
+#### 3. Excess Stock Card in Stock Tab
+**Files**: `components/features/stock-tab.tsx`
+
+**Added**:
+- New state: `excessStock`, `isLoadingExcess`
+- New function: `loadExcessStock()` — fetches `getProductStock()` and filters by `stockBoxedAmount > 0`
+- New component: `ExcessStockCard()` — displays excess stock with product image, serial, label, box count
+- UI: Card always visible at top of Stock tab (before order cards)
+- Styling: Amber/warning color scheme to distinguish from order stock
+
+**Behavior**:
+- Shows total boxes across all excess stock in header
+- Grid of products in excess stock
+- "No excess stock" message when empty
+- Refresh button reloads both order stock and excess stock
+
+**Impact**: Excess inventory is now transparent and always visible, improving warehouse management.
+
+---
+
+#### 4. Auto-Deduct Excess Stock Feedback
+**Files**: 
+- `apps/api/src/orders/orders.service.ts`
+- `components/features/orders-tab.tsx`
+- `types/ipc.ts`
+
+**Backend fix** (orders.service.ts, lines 165-171):
+```typescript
+// Before: returned order snapshot BEFORE auto-deduction
+// After: re-fetch order AFTER auto-deduction applies
+const updatedOrder = await this.prisma.order.findUnique({
+  where: { id },
+  include: this.defaultInclude,
+});
+return serialize(updatedOrder);
+```
+
+**Type update** (types/ipc.ts):
+- Added `boxesAssembled: number;` to `OrderItemResponse` interface
+  - Was missing even though backend always included it
+  - Now response contract is complete
+
+**Frontend feedback** (orders-tab.tsx, handleStartProduction):
+```typescript
+const items = result.data.orderItems ?? [];
+const applied = items.filter(i => i.boxesAssembled && i.boxesAssembled > 0);
+if (applied.length > 0) {
+  const details = applied.map(i => 
+    `${i.product?.serialNumber ?? 'Product'}: ${i.boxesAssembled} box${...} from stock`
+  ).join('\n');
+  alert(`Stock auto-applied:\n${details}`);
+}
+```
+
+**Behavior**:
+- When user clicks "Start Production" on an order:
+  1. Backend checks excess stock via `autoDeductProductStock()`
+  2. For each order item, if excess stock available, applies to `boxesAssembled`
+  3. Re-fetches updated order with correct `boxesAssembled` values
+  4. Frontend shows alert listing which products got stock applied (e.g., "ProductA: 5 boxes from stock")
+- Stock is automatically deducted from `productStock` table
+
+**Impact**: Users now see exactly what stock was auto-applied, increasing transparency and reducing confusion.
+
+---
+
+### Build & Testing
+
+| Aspect | Status |
+|--------|--------|
+| Next.js build | ✅ Compiled successfully (1.9s) |
+| API type check | ✅ No TypeScript errors |
+| Electron build | ✅ Compiled (tsc) |
+| Installer signing | ✅ 3 files code-signed |
+| Production build | ✅ Complete |
+| Installation | ✅ Silent install successful |
+| App launch | ✅ Running |
+
+**Installer**: `Production Management-Setup-0.2.3.exe` (same version, new features)
+
+---
+
+### Feature Validation
+
+#### Element Clone
+- ✅ Clone element with raw material assigned
+- ✅ Cloned element retains label
+- ✅ Edit cloned element — all fields editable
+
+#### Assembly Print
+- ✅ Single-product order: compact layout, no wasted space
+- ✅ Multi-product order: columns scale appropriately
+- ✅ Many elements (>10): font reduces, remains legible
+- ✅ Color circles render for both single/dual-color elements
+- ✅ Element labels display (or name if no label)
+- ✅ Landscape A4 by default
+
+#### Excess Stock Card
+- ✅ Visible when products have stock
+- ✅ Shows correct total
+- ✅ Product images/labels display
+- ✅ "No excess stock" when empty
+- ✅ Refresh updates both sections
+
+#### Auto-Deduct
+- ✅ Stock auto-applies on "Start Production"
+- ✅ Alert shows correct products and quantities
+- ✅ `boxesAssembled` updates in response
+- ✅ Stock deducted from `productStock` table
+
+---
+
+### Files Modified
+
+| File | Change | Lines |
+|------|--------|-------|
+| `components/features/elements-tab.tsx` | Element clone: add `rawMaterialId`, `label` | ~72-73 |
+| `components/features/production-tab.tsx` | Rewrite `handlePrintAssembly()` function | ~48-157 |
+| `components/features/stock-tab.tsx` | Add excess stock state, loader, card component | +80 |
+| `apps/api/src/orders/orders.service.ts` | Re-fetch order after auto-deduction | 165-171 |
+| `components/features/orders-tab.tsx` | Add auto-deduct feedback alert | ~64-75 |
+| `types/ipc.ts` | Add `boxesAssembled` to `OrderItemResponse` | ~254 |
+
+---
+
+### Backward Compatibility
+✅ All changes backward compatible:
+- Element cloning gracefully handles missing fields (defaults to blank/null)
+- Assembly print adapts to any order complexity
+- Excess stock card handles both populated and empty states
+- Auto-deduct logic unchanged; only response data corrected
+
+---
+
+### Dependencies
+No new dependencies added. All changes use existing libraries:
+- React hooks for state management
+- Prisma for database operations
+- NestJS for backend service logic
+
+---
+
+### Next Steps / Future Enhancements
+1. Replace alert notifications with toast notifications (less intrusive)
+2. Option to exclude labeled elements from assembly print (if output too wide)
+3. Stock transfer UI — move excess between products
+4. Historical stock reports — track excess usage
+
+---
+
+### Status
+**✅ PHASE 10 COMPLETE** — Element clone bug fixed, assembly print sheet redesigned as standalone dynamic function (landscape, adaptive sizing), excess stock card added to Stock tab (always visible, transparent inventory management), auto-deduct feedback shows user exactly what stock was applied. All features tested and working. Installer built, signed, installed successfully. v0.2.3 ready for production.
+
+---
+
+## Phase 11 — i18n, UX Improvements, Order Editing & Print in Assembly
+
+**Date**: 2026-02-10
+
+### Overview
+Four features implemented in a single pass:
+1. **Multi-language support** (English, Albanian, Macedonian) — extensible i18n system
+2. **Assembly print button** added to Inventory/Assembly tab
+3. **Order edit restrictions** — editable in pending/production, locked when shipped
+4. **Stock tab UX** — status messages for incomplete vs complete orders
+
+---
+
+### Feature 1: Internationalization (i18n)
+
+#### Architecture
+- **`lib/i18n.tsx`** (new, ~700 lines) — Complete i18n system using React Context
+  - `I18nProvider` wraps the app (added to `app/layout.tsx`)
+  - `useI18n()` hook returns `{ t, language, setLanguage }` 
+  - `LanguagePicker` dropdown component (flag + name + checkmark)
+  - Type-safe `TranslationKeys` type (~120 keys) — compiler catches missing translations
+  - `Language` type: `'en' | 'sq' | 'mk'` (English, Albanian, Macedonian)
+  - `LANGUAGES` array with labels and flag emojis
+  - Language preference persisted to `localStorage`
+  - Translation key namespaces: app, nav, common, orders, orderDetail, production, inventory, stock, storage, products, elements, print
+
+#### Adding a new language
+1. Add code to `Language` type: `'en' | 'sq' | 'mk' | 'fr'`
+2. Add entry to `LANGUAGES` array: `{ code: 'fr', label: 'Français', flag: '🇫🇷' }`
+3. Add full translation record to `translations` object
+4. Done — all components automatically pick up the new language
+
+#### Components updated with i18n
+- `app/page.tsx` — header, nav tabs, version/update text, LanguagePicker
+- `components/features/orders-tab.tsx` — filters, search, buttons, empty states, edit modal
+- `components/features/production-tab.tsx` — title, subtitle, buttons, loading/empty states
+- `components/features/inventory-tab.tsx` — element inventory panel, assembly panel, excess assembly
+- `components/features/stock-tab.tsx` — header, ship button, status messages, excess stock card
+- `components/features/products-tab.tsx` — toolbar, search, loading, modals (Edit/Clone)
+- `components/features/elements-tab.tsx` — toolbar, search, loading, modals (Create/Edit)
+- `components/features/storage-tab.tsx` — header, search, loading, modals (Create/Edit/Adjust)
+- `components/order-card.tsx` — status badges, all action buttons (Produce/Ship/Confirm/etc.)
+- `components/order-detail-modal.tsx` — status labels, summary, notes, products, close button
+- `components/production-order-card.tsx` — badge, print tooltips, element row labels, footer
+
+---
+
+### Feature 2: Assembly Print Button
+
+- **`lib/print-assembly.ts`** (new, ~130 lines) — Shared utility extracted from production-tab
+  - `printAssemblySheet(orderId: string): Promise<void>`
+  - Fetches order via `window.electron.getOrderById()`
+  - Builds dynamic HTML table (A4 landscape, adaptive column sizing)
+  - Opens print preview window with auto-print trigger
+- **`components/features/inventory-tab.tsx`** — Added print button (printer icon) to `AssemblyOrderCard` header
+- **`components/features/production-tab.tsx`** — Replaced ~100-line inline `handlePrintAssembly` with 3-line call to shared `printAssemblySheet()`
+
+---
+
+### Feature 3: Order Edit Restrictions
+
+- **`components/order-card.tsx`** — Added `onEdit` prop, `isEditable` check (`order.status !== 'shipped'`)
+  - Pending/In Production: Shows pencil icon "Edit" button
+  - Shipped: Shows lock icon (no edit allowed), tooltip "Shipped orders cannot be edited"
+- **`components/features/orders-tab.tsx`** — Added `EditOrderModal` component
+  - Opens when user clicks Edit on a non-shipped order
+  - Allows editing order notes field
+  - Calls `window.electron.updateOrder(order.id, { notes })` on save
+  - Auto-refreshes order list after save
+
+---
+
+### Feature 4: Stock Tab UX Improvements
+
+- **`components/features/stock-tab.tsx`** — `StockOrderCard` updated:
+  - Previously: Ship button only visible when `allComplete`, nothing shown otherwise
+  - Now when incomplete: Shows grey "clock" icon badge with message "Not all products assembled yet"
+  - Now when complete: Shows green Ship button with checkmark + "Order complete — ready to ship" tooltip
+  - `ExcessStockCard` also updated with i18n translations
+
+---
+
+### Files Created
+| File | Lines | Purpose |
+|------|-------|---------|
+| `lib/i18n.tsx` | ~700 | i18n system (context, hook, translations, picker) |
+| `lib/print-assembly.ts` | ~130 | Shared print utility for assembly sheets |
+
+### Files Modified
+| File | Changes |
+|------|---------|
+| `app/layout.tsx` | Added I18nProvider wrapping |
+| `app/page.tsx` | LanguagePicker, translated nav + header |
+| `components/features/orders-tab.tsx` | Edit modal, i18n, fixed duplicate JSX |
+| `components/features/production-tab.tsx` | Shared print utility, i18n |
+| `components/features/inventory-tab.tsx` | Print button, i18n (all sub-components) |
+| `components/features/stock-tab.tsx` | UX status messages, i18n |
+| `components/features/products-tab.tsx` | i18n (toolbar, modals) |
+| `components/features/elements-tab.tsx` | i18n (toolbar, modals) |
+| `components/features/storage-tab.tsx` | i18n (toolbar, modals) |
+| `components/order-card.tsx` | Edit button/lock, i18n (all action buttons, badges) |
+| `components/order-detail-modal.tsx` | i18n (status, summary, notes, products) |
+| `components/production-order-card.tsx` | i18n (badge, labels, tooltips) |
+
+### Dependencies
+No new dependencies. All changes use existing React, Next.js, and Electron APIs.
+
+---
+
+### Status
+**✅ PHASE 11 COMPLETE** — Multi-language i18n system (EN/SQ/MK) with type-safe translations, assembly print button in inventory tab, order edit restrictions with visual lock/unlock UX, stock tab improved with status messages for incomplete/complete orders. Build passes cleanly. App tested and running.

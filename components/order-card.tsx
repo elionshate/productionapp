@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import type { OrderResponse } from '../types/ipc';
+import { useI18n } from '../lib/i18n';
 
 interface OrderCardProps {
   order: OrderResponse;
@@ -9,6 +10,7 @@ interface OrderCardProps {
   onStartProduction?: (id: string) => void;
   onDelete?: (id: string) => Promise<void> | void;
   onClick?: (id: string) => void;
+  onEdit?: (order: OrderResponse) => void;
 }
 
 function formatDate(date: Date | string): string {
@@ -40,15 +42,17 @@ const STATUS_CONFIG: Record<string, { label: string; bg: string; text: string; d
   },
 };
 
-export default function OrderCard({ order, onShip, onStartProduction, onDelete, onClick }: OrderCardProps) {
+export default function OrderCard({ order, onShip, onStartProduction, onDelete, onClick, onEdit }: OrderCardProps) {
   const [confirmShip, setConfirmShip] = useState(false);
   const [isShipping, setIsShipping] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [confirmProduction, setConfirmProduction] = useState(false);
   const [isStartingProduction, setIsStartingProduction] = useState(false);
+  const { t } = useI18n();
 
   const statusCfg = STATUS_CONFIG[order.status] || STATUS_CONFIG.pending;
+  const isEditable = order.status !== 'shipped';
   const itemCount = order.orderItems?.length ?? 0;
   const totalBoxes = order.orderItems?.reduce((sum, item) => sum + item.boxesNeeded, 0) ?? 0;
 
@@ -94,7 +98,7 @@ export default function OrderCard({ order, onShip, onStartProduction, onDelete, 
         </div>
         <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${statusCfg.bg} ${statusCfg.text}`}>
           <span className={`h-1.5 w-1.5 rounded-full ${statusCfg.dot}`} />
-          {statusCfg.label}
+          {order.status === 'pending' ? t('orders.pending') : order.status === 'in_production' ? t('orders.inProduction') : t('orders.shipped')}
         </span>
       </div>
 
@@ -104,14 +108,14 @@ export default function OrderCard({ order, onShip, onStartProduction, onDelete, 
           <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
           </svg>
-          Created {formatDate(order.createdAt)}
+          {t('orders.created')} {formatDate(order.createdAt)}
         </span>
         {order.shippedAt && (
           <span className="flex items-center gap-1 text-green-600 dark:text-green-400">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
             </svg>
-            Shipped {formatDate(order.shippedAt)}
+            {t('orders.shippedOn')} {formatDate(order.shippedAt)}
           </span>
         )}
         <span className="flex items-center gap-1">
@@ -163,6 +167,27 @@ export default function OrderCard({ order, onShip, onStartProduction, onDelete, 
 
       {/* Action Buttons */}
       <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+        {/* Edit Button — only for pending / in_production */}
+        {onEdit && isEditable && (
+          <button
+            onClick={() => onEdit(order)}
+            className="flex items-center gap-1.5 rounded-lg border border-zinc-300 px-3 py-1.5 text-xs font-medium text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800"
+            title={t('orders.editOrder')}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            </svg>
+            {t('common.edit')}
+          </button>
+        )}
+        {onEdit && !isEditable && (
+          <span className="flex items-center gap-1 text-[10px] text-zinc-400 dark:text-zinc-500" title={t('orders.cannotEditShipped')}>
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+          </span>
+        )}
+
         {/* Start Production Button — only for pending orders with items */}
         {order.status === 'pending' && onStartProduction && itemCount > 0 && (
           <button
@@ -182,12 +207,12 @@ export default function OrderCard({ order, onShip, onStartProduction, onDelete, 
                 : 'border border-blue-300 text-blue-700 hover:bg-blue-50 dark:border-blue-700 dark:text-blue-400 dark:hover:bg-blue-950/30'
             } disabled:opacity-50 disabled:cursor-not-allowed`}
           >
-            {isStartingProduction ? 'Starting...' : confirmProduction ? 'Confirm?' : (
+            {isStartingProduction ? t('orders.starting') : confirmProduction ? t('common.confirm') : (
               <>
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
                 </svg>
-                Produce
+                {t('orders.produce')}
               </>
             )}
           </button>
@@ -204,12 +229,12 @@ export default function OrderCard({ order, onShip, onStartProduction, onDelete, 
                 : 'border border-green-300 text-green-700 hover:bg-green-50 dark:border-green-700 dark:text-green-400 dark:hover:bg-green-950/30'
             } disabled:opacity-50 disabled:cursor-not-allowed`}
           >
-            {isShipping ? 'Shipping...' : confirmShip ? 'Confirm Ship?' : (
+            {isShipping ? t('orders.shipping') : confirmShip ? t('orders.confirmShip') : (
               <>
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                 </svg>
-                Ship
+                {t('orders.ship')}
               </>
             )}
           </button>
@@ -221,7 +246,7 @@ export default function OrderCard({ order, onShip, onStartProduction, onDelete, 
             <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
             </svg>
-            Shipped{order.shippedAt ? ` ${formatDate(order.shippedAt)}` : ''}
+            {t('orders.shipped')}{order.shippedAt ? ` ${formatDate(order.shippedAt)}` : ''}
           </span>
         )}
 
@@ -238,7 +263,7 @@ export default function OrderCard({ order, onShip, onStartProduction, onDelete, 
                 : 'text-zinc-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30 dark:hover:text-red-400 opacity-0 group-hover:opacity-100'
             } disabled:opacity-50 disabled:cursor-not-allowed`}
           >
-            {isDeleting ? 'Deleting...' : confirmDelete ? 'Confirm?' : (
+            {isDeleting ? t('orders.deleting') : confirmDelete ? t('common.confirm') : (
               <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
               </svg>

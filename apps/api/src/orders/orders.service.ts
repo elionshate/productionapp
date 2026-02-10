@@ -173,7 +173,12 @@ export class OrdersService {
       await this.deductProductStockOnShip(id);
     }
 
-    return serialize(order);
+    // Re-fetch to reflect auto-deduction changes
+    const updatedOrder = await this.prisma.order.findUnique({
+      where: { id },
+      include: this.defaultInclude,
+    });
+    return serialize(updatedOrder);
   }
 
   /**

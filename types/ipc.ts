@@ -252,6 +252,7 @@ export interface OrderItemResponse {
   orderId: string;
   productId: string;
   boxesNeeded: number;
+  boxesAssembled: number;
   createdAt: Date;
   product?: ProductResponse;
 }

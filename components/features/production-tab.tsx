@@ -4,10 +4,13 @@ import { useState, useEffect } from 'react';
 import ProductionOrderCard from '../production-order-card';
 import type { ProductionOrderData } from '../../types/ipc';
 import { colorNameToHex } from '../../lib/utils';
+import { printAssemblySheet } from '../../lib/print-assembly';
+import { useI18n } from '../../lib/i18n';
 
 export default function ProductionTab() {
   const [productionOrders, setProductionOrders] = useState<ProductionOrderData[]>([]);
   const [isLoadingProduction, setIsLoadingProduction] = useState(true);
+  const { t } = useI18n();
 
   useEffect(() => {
     loadProductionOrders();
@@ -44,107 +47,7 @@ export default function ProductionTab() {
   }
 
   async function handlePrintAssembly(orderId: string) {
-    if (!window.electron) return;
-    try {
-      const result = await window.electron.getOrderById(orderId);
-      if (!result.success || !result.data) return;
-      const order = result.data;
-
-      const dateStr = new Date().toLocaleDateString('en-GB');
-      let printHtml = '';
-      printHtml += `<h2 style="margin:0 0 4px;">Assembly Sheet — Order #${order.orderNumber}</h2>`;
-      printHtml += `<p style="margin:0 0 12px;font-size:11px;color:#666;">${order.clientName} · ${dateStr}${order.notes ? ` · ${order.notes}` : ''}</p>`;
-
-      if (order.orderItems && order.orderItems.length > 0) {
-        for (const item of order.orderItems) {
-          const product = item.product;
-          if (!product) continue;
-          const elements = product.productElements ?? [];
-
-          printHtml += `<div class="product-block">`;
-          printHtml += `<div class="product-header">`;
-          if (product.imageUrl) {
-            printHtml += `<img src="${product.imageUrl}" class="product-img" />`;
-          } else {
-            printHtml += `<div class="product-img product-img-placeholder">No Image</div>`;
-          }
-          printHtml += `<div class="product-info">`;
-          printHtml += `<div class="product-sn">${product.serialNumber}</div>`;
-          if (product.label) {
-            printHtml += `<div class="product-label">${product.label}</div>`;
-          }
-          printHtml += `<div class="product-meta">${item.boxesNeeded} box${item.boxesNeeded !== 1 ? 'es' : ''} · ${product.unitsPerBox} unit${product.unitsPerBox !== 1 ? 's' : ''}/box</div>`;
-          printHtml += `</div></div>`;
-
-          if (elements.length > 0) {
-            printHtml += `<div class="elements-grid">`;
-            for (const pe of elements) {
-              const el = pe.element;
-              if (!el) continue;
-              printHtml += `<div class="element-chip">`;
-              printHtml += `<div class="color-circles">`;
-              printHtml += `<div class="color-dot" style="background-color:${colorNameToHex(el.color)}" title="${el.color}"></div>`;
-              if (el.isDualColor && el.color2) {
-                printHtml += `<div class="color-dot color-dot-overlap" style="background-color:${colorNameToHex(el.color2)}" title="${el.color2}"></div>`;
-              }
-              printHtml += `</div>`;
-              printHtml += `<span class="element-qty">×${pe.quantityNeeded}</span>`;
-              printHtml += `</div>`;
-            }
-            printHtml += `</div>`;
-          } else {
-            printHtml += `<p style="color:#999;font-size:11px;margin:4px 0 0;">No elements assigned</p>`;
-          }
-          printHtml += `</div>`;
-        }
-      }
-
-      const printWindow = window.open('', '_blank', 'width=900,height=700');
-      if (printWindow) {
-        printWindow.document.write(`<!DOCTYPE html><html><head><title>Assembly Sheet</title>
-          <style>
-            @page { size: A4 portrait; margin: 10mm; }
-            * { margin: 0; padding: 0; box-sizing: border-box; }
-            body { font-family: Arial, Helvetica, sans-serif; background: #f5f5f5; padding: 1rem; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-            .header { position: sticky; top: 0; z-index: 10; background: white; border-bottom: 2px solid #333; padding: 0.75rem 1rem; margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-            .print-btn { background: #2563eb; color: white; border: none; padding: 0.6rem 1.4rem; font-size: 14px; font-weight: bold; border-radius: 6px; cursor: pointer; }
-            .print-btn:hover { background: #1d4ed8; }
-            .content { background: white; padding: 1.5rem; border-radius: 4px; }
-            .product-block { border: 1px solid #ddd; border-radius: 8px; padding: 12px; margin-bottom: 12px; page-break-inside: avoid; break-inside: avoid; }
-            .product-header { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
-            .product-img { width: 64px; height: 64px; object-fit: contain; border-radius: 6px; border: 1px solid #e5e5e5; flex-shrink: 0; }
-            .product-img-placeholder { display: flex; align-items: center; justify-content: center; background: #f5f5f5; color: #bbb; font-size: 9px; }
-            .product-info { flex: 1; }
-            .product-sn { font-size: 16px; font-weight: 700; color: #111; }
-            .product-label { display: inline-block; margin-top: 2px; padding: 1px 6px; background: #f3e8ff; color: #7c3aed; font-size: 11px; font-weight: 700; text-transform: uppercase; border-radius: 3px; }
-            .product-meta { font-size: 11px; color: #888; margin-top: 2px; }
-            .elements-grid { display: flex; flex-wrap: wrap; gap: 8px; }
-            .element-chip { display: flex; align-items: center; gap: 4px; border: 1px solid #e5e5e5; border-radius: 6px; padding: 4px 8px; background: #fafafa; }
-            .color-circles { display: flex; align-items: center; }
-            .color-dot { width: 20px; height: 20px; border-radius: 50%; border: 2px solid #ccc; }
-            .color-dot-overlap { margin-left: -6px; }
-            .element-qty { font-size: 12px; font-weight: 600; color: #444; }
-            @media print {
-              .header { display: none !important; }
-              body { background: white; padding: 0; }
-              .content { padding: 0; box-shadow: none; border-radius: 0; }
-            }
-          </style>
-        </head><body>
-          <div class="header">
-            <div>
-              <h3 style="margin:0;">Assembly Sheet Preview</h3>
-              <p style="margin:0.2rem 0 0;color:#999;font-size:11px;">A4 Portrait · Click the button to print</p>
-            </div>
-            <button class="print-btn" onclick="window.print()">🖨️ Print</button>
-          </div>
-          <div class="content">${printHtml}</div>
-        </body></html>`);
-        printWindow.document.close();
-      }
-    } catch (err) {
-      console.error('Failed to print assembly sheet:', err);
-    }
+    await printAssemblySheet(orderId);
   }
 
   function handlePrintProduction(mode: 'orders' | 'totals', orderId?: string) {
@@ -330,22 +233,22 @@ export default function ProductionTab() {
       <div className="flex-1 overflow-y-auto border-r border-zinc-200 dark:border-zinc-800 p-6">
         <div className="mb-6 flex items-center justify-between">
           <div>
-            <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Production Orders</h2>
+            <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">{t('production.title')}</h2>
             <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-              Track element manufacturing progress for orders in production
+              {t('production.subtitle')}
             </p>
           </div>
           <div className="flex items-center gap-2">
             {productionOrders.length > 0 && (
-              <button onClick={() => handlePrintProduction('orders')} className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700">Print</button>
+              <button onClick={() => handlePrintProduction('orders')} className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700">{t('common.print')}</button>
             )}
-            <button onClick={loadProductionOrders} className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700">Refresh</button>
+            <button onClick={loadProductionOrders} className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700">{t('common.refresh')}</button>
           </div>
         </div>
 
         {isLoadingProduction ? (
           <div className="flex items-center justify-center py-20">
-            <div className="text-sm text-zinc-500 dark:text-zinc-400">Loading production data...</div>
+            <div className="text-sm text-zinc-500 dark:text-zinc-400">{t('common.loading')}</div>
           </div>
         ) : productionOrders.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20">
@@ -354,9 +257,9 @@ export default function ProductionTab() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
               </svg>
             </div>
-            <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">No orders in production</p>
+            <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">{t('production.noOrders')}</p>
             <p className="mt-1 text-xs text-zinc-400 dark:text-zinc-500">
-              Set an order&apos;s status to &quot;In Production&quot; from the Orders tab to see it here.
+              {t('production.noOrdersHint')}
             </p>
           </div>
         ) : (
@@ -378,21 +281,21 @@ export default function ProductionTab() {
       <div className="w-[380px] flex-shrink-0 overflow-y-auto p-6">
         <div className="mb-4 flex items-center justify-between">
           <div>
-            <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Total Requirements</h2>
-            <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">Aggregated across all orders</p>
+            <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">{t('production.totalRequirements')}</h2>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">{t('production.aggregated')}</p>
           </div>
           {productionOrders.length > 0 && (
-            <button onClick={() => handlePrintProduction('totals')} className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700">Print</button>
+            <button onClick={() => handlePrintProduction('totals')} className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700">{t('common.print')}</button>
           )}
         </div>
 
         {isLoadingProduction ? (
           <div className="flex items-center justify-center py-16">
-            <div className="text-sm text-zinc-500 dark:text-zinc-400">Loading...</div>
+            <div className="text-sm text-zinc-500 dark:text-zinc-400">{t('common.loading')}</div>
           </div>
         ) : productionOrders.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16">
-            <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">No production data</p>
+            <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">{t('production.noData')}</p>
           </div>
         ) : <AggregatedTotals productionOrders={productionOrders} />}
       </div>

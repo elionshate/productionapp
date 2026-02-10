@@ -1,6 +1,7 @@
 'use client';
 
 import type { OrderResponse } from '../types/ipc';
+import { useI18n } from '../lib/i18n';
 
 interface OrderDetailModalProps {
   isOpen: boolean;
@@ -16,14 +17,14 @@ function formatDate(date: Date | string): string {
   return `${day}/${month}/${year}`;
 }
 
-const STATUS_LABEL: Record<string, string> = {
-  pending: 'Pending',
-  in_production: 'In Production',
-  shipped: 'Shipped',
-};
-
 export default function OrderDetailModal({ isOpen, order, onClose }: OrderDetailModalProps) {
   if (!isOpen || !order) return null;
+  const { t } = useI18n();
+  const statusLabels: Record<string, string> = {
+    pending: t('orders.pending'),
+    in_production: t('orders.inProduction'),
+    shipped: t('orders.shipped'),
+  };
 
   const totalBoxes = order.orderItems?.reduce((sum, item) => sum + item.boxesNeeded, 0) ?? 0;
   const totalUnits = order.orderItems?.reduce(
@@ -41,7 +42,7 @@ export default function OrderDetailModal({ isOpen, order, onClose }: OrderDetail
               Order #{order.orderNumber}
             </h2>
             <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
-              {order.clientName} · {formatDate(order.createdAt)} · {STATUS_LABEL[order.status] || order.status}
+              {order.clientName} · {formatDate(order.createdAt)} · {statusLabels[order.status] || order.status}
             </p>
           </div>
           <button onClick={onClose} className="rounded-md p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300">
@@ -57,22 +58,22 @@ export default function OrderDetailModal({ isOpen, order, onClose }: OrderDetail
           <div className="mb-4 grid grid-cols-3 gap-3">
             <div className="rounded-lg bg-zinc-50 p-3 text-center dark:bg-zinc-800">
               <p className="text-lg font-bold text-zinc-900 dark:text-zinc-100">{order.orderItems?.length ?? 0}</p>
-              <p className="text-xs text-zinc-500 dark:text-zinc-400">Products</p>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400">{t('orders.products')}</p>
             </div>
             <div className="rounded-lg bg-zinc-50 p-3 text-center dark:bg-zinc-800">
               <p className="text-lg font-bold text-zinc-900 dark:text-zinc-100">{totalBoxes}</p>
-              <p className="text-xs text-zinc-500 dark:text-zinc-400">Boxes</p>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400">{t('common.boxes')}</p>
             </div>
             <div className="rounded-lg bg-zinc-50 p-3 text-center dark:bg-zinc-800">
               <p className="text-lg font-bold text-zinc-900 dark:text-zinc-100">{totalUnits}</p>
-              <p className="text-xs text-zinc-500 dark:text-zinc-400">Units</p>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400">{t('common.units')}</p>
             </div>
           </div>
 
           {/* Notes */}
           {order.notes && (
             <div className="mb-4">
-              <h3 className="mb-1 text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Notes</h3>
+              <h3 className="mb-1 text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">{t('orders.notes')}</h3>
               <p className="rounded-lg bg-zinc-50 px-3 py-2 text-sm text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
                 {order.notes}
               </p>
@@ -81,7 +82,7 @@ export default function OrderDetailModal({ isOpen, order, onClose }: OrderDetail
 
           {/* Order Items */}
           <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-            Products in Order
+            {t('orderDetail.productsInOrder')}
           </h3>
           {order.orderItems && order.orderItems.length > 0 ? (
             <div className="space-y-2">
@@ -112,17 +113,17 @@ export default function OrderDetailModal({ isOpen, order, onClose }: OrderDetail
                   </div>
                   <div className="text-right flex-shrink-0">
                     <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                      {item.boxesNeeded} box{item.boxesNeeded !== 1 ? 'es' : ''}
+                      {item.boxesNeeded} {item.boxesNeeded !== 1 ? t('common.boxes') : t('common.box')}
                     </p>
                     <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                      {item.boxesNeeded * (item.product?.unitsPerBox ?? 0)} units
+                      {item.boxesNeeded * (item.product?.unitsPerBox ?? 0)} {t('common.units')}
                     </p>
                   </div>
                 </div>
               ))}
             </div>
           ) : (
-            <p className="text-sm text-zinc-500 dark:text-zinc-400 text-center py-4">No products in this order.</p>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400 text-center py-4">{t('orderDetail.noProducts')}</p>
           )}
         </div>
 
@@ -132,7 +133,7 @@ export default function OrderDetailModal({ isOpen, order, onClose }: OrderDetail
             onClick={onClose}
             className="rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
           >
-            Close
+            {t('common.close')}
           </button>
         </div>
       </div>

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import type { ProductionOrderData, ProductionElementGroup } from '../types/ipc';
 import { colorNameToHex } from '../lib/utils';
+import { useI18n } from '../lib/i18n';
 
 interface ProductionOrderCardProps {
   order: ProductionOrderData;
@@ -27,6 +28,7 @@ function formatWeight(grams: number): string {
 }
 
 export default function ProductionOrderCard({ order, onRecordProduction, onPrint, onPrintAssembly }: ProductionOrderCardProps) {
+  const { t } = useI18n();
   return (
     <div className="rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
       {/* Order Header */}
@@ -44,7 +46,7 @@ export default function ProductionOrderCard({ order, onRecordProduction, onPrint
             <button
               onClick={() => onPrintAssembly(order.orderId)}
               className="rounded-lg border border-zinc-300 bg-white p-1.5 text-zinc-500 transition-colors hover:bg-zinc-50 hover:text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700 dark:hover:text-zinc-200"
-              title="Print assembly sheet"
+              title={t('production.printAssembly')}
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -55,7 +57,7 @@ export default function ProductionOrderCard({ order, onRecordProduction, onPrint
             <button
               onClick={() => onPrint(order.orderId)}
               className="rounded-lg border border-zinc-300 bg-white p-1.5 text-zinc-500 transition-colors hover:bg-zinc-50 hover:text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700 dark:hover:text-zinc-200"
-              title="Print this order"
+              title={t('production.productionPrint')}
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
@@ -64,7 +66,7 @@ export default function ProductionOrderCard({ order, onRecordProduction, onPrint
           )}
           <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 dark:bg-blue-950/30 dark:text-blue-400">
             <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
-            In Production
+            {t('orders.inProduction')}
           </span>
         </div>
       </div>
@@ -99,9 +101,9 @@ export default function ProductionOrderCard({ order, onRecordProduction, onPrint
       {/* Summary Footer */}
       <div className="border-t border-zinc-100 px-5 py-2.5 dark:border-zinc-800">
         <div className="flex items-center justify-between text-xs text-zinc-500 dark:text-zinc-400">
-          <span>{order.elements.length} element type{order.elements.length !== 1 ? 's' : ''}</span>
+          <span>{order.elements.length} {t('production.elementTypes')}</span>
           <span>
-            Total weight: {formatWeight(order.elements.reduce((sum, e) => sum + e.totalWeightGrams, 0))}
+            {t('production.totalWeight')}: {formatWeight(order.elements.reduce((sum, e) => sum + e.totalWeightGrams, 0))}
           </span>
         </div>
       </div>
@@ -120,6 +122,7 @@ interface ProductionElementRowProps {
 }
 
 function ProductionElementRow({ element, orderId, onRecordProduction }: ProductionElementRowProps) {
+  const { t } = useI18n();
   const [inputValue, setInputValue] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [remaining, setRemaining] = useState(element.remaining);
@@ -213,9 +216,9 @@ function ProductionElementRow({ element, orderId, onRecordProduction }: Producti
           )}
         </div>
         <div className="flex items-center gap-4 mt-1.5 text-sm text-zinc-600 dark:text-zinc-300">
-          <span>Need: <span className="font-bold text-lg text-zinc-900 dark:text-zinc-100">{element.totalNeeded}</span></span>
-          <span>Remaining: <span className={`font-bold text-lg ${isDone ? 'text-green-600 dark:text-green-400' : 'text-amber-600 dark:text-amber-400'}`}>{Math.max(0, remaining)}</span></span>
-          <span>Weight: <span className="font-semibold">{formatWeight(remainingWeight)}</span></span>
+          <span>{t('production.need')}: <span className="font-bold text-lg text-zinc-900 dark:text-zinc-100">{element.totalNeeded}</span></span>
+          <span>{t('production.remaining')}: <span className={`font-bold text-lg ${isDone ? 'text-green-600 dark:text-green-400' : 'text-amber-600 dark:text-amber-400'}`}>{Math.max(0, remaining)}</span></span>
+          <span>{t('production.weight')}: <span className="font-semibold">{formatWeight(remainingWeight)}</span></span>
         </div>
 
         {/* Progress bar */}
@@ -234,7 +237,7 @@ function ProductionElementRow({ element, orderId, onRecordProduction }: Producti
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
             </svg>
-            Done
+            {t('common.done')}
           </div>
         ) : (
           <div className="flex flex-col items-end gap-1">
@@ -244,7 +247,7 @@ function ProductionElementRow({ element, orderId, onRecordProduction }: Producti
                 value={inputValue}
                 onChange={(e) => { setInputValue(e.target.value); setError(''); }}
                 onKeyDown={handleKeyDown}
-                placeholder="Qty"
+                placeholder={t('production.qty')}
                 min="1"
                 className="w-20 rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 dark:border-zinc-600 dark:bg-zinc-700 dark:text-zinc-100 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                 disabled={isSubmitting}

@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import type { ElementResponse, RawMaterialResponse } from '../../types/ipc';
 import { colorNameToHex } from '../../lib/utils';
+import { useI18n } from '../../lib/i18n';
 
 export default function ElementsTab() {
   const [elements, setElements] = useState<ElementResponse[]>([]);
@@ -10,6 +11,7 @@ export default function ElementsTab() {
   const [showCreateElement, setShowCreateElement] = useState(false);
   const [elementSearch, setElementSearch] = useState('');
   const [activeElementCategory, setActiveElementCategory] = useState<string>('All');
+  const { t } = useI18n();
 
   const elementCategories = useMemo(() => {
     const names = new Set(elements.map(e => e.uniqueName));
@@ -68,10 +70,12 @@ export default function ElementsTab() {
     try {
       const result = await window.electron.createElement({
         uniqueName: element.uniqueName,
+        label: element.label || '',
         color: element.color,
         color2: element.color2,
         isDualColor: element.isDualColor,
         material: element.material,
+        rawMaterialId: element.rawMaterialId ?? undefined,
         weightGrams: element.weightGrams,
         imageUrl: element.imageUrl ?? undefined,
       });
@@ -123,7 +127,7 @@ export default function ElementsTab() {
                 type="text"
                 value={elementSearch}
                 onChange={(e) => setElementSearch(e.target.value)}
-                placeholder="Search elements..."
+                placeholder={t('common.search') + '...'}
                 className="w-56 rounded-lg border border-zinc-300 bg-white py-2 pl-9 pr-3 text-sm text-zinc-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
               />
             </div>
@@ -134,7 +138,7 @@ export default function ElementsTab() {
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
               </svg>
-              Add Element
+              {t('elements.newElement')}
             </button>
           </div>
         </div>
@@ -143,7 +147,7 @@ export default function ElementsTab() {
       {/* Elements Grid */}
       {isLoadingElements ? (
         <div className="flex items-center justify-center py-20">
-          <div className="text-sm text-zinc-500 dark:text-zinc-400">Loading elements...</div>
+          <div className="text-sm text-zinc-500 dark:text-zinc-400">{t('common.loading')}</div>
         </div>
       ) : filteredElements.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20">
@@ -208,6 +212,7 @@ function ElementCard({
   });
   const [isSaving, setIsSaving] = useState(false);
   const [availableMaterials, setAvailableMaterials] = useState<RawMaterialResponse[]>([]);
+  const { t } = useI18n();
 
   useEffect(() => {
     if (isEditing && window.electron) {
@@ -298,9 +303,9 @@ function ElementCard({
           </button>
           <div className="flex gap-2">
             <button onClick={handleSave} disabled={isSaving || !editForm.uniqueName || !editForm.color} className="flex-1 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
-              {isSaving ? 'Saving...' : 'Save'}
+              {isSaving ? t('common.loading') : t('common.save')}
             </button>
-            <button onClick={() => setIsEditing(false)} className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">Cancel</button>
+            <button onClick={() => setIsEditing(false)} className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">{t('common.cancel')}</button>
           </div>
         </div>
       </div>
@@ -393,6 +398,7 @@ function CreateElementInlineModal({
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [availableMaterials, setAvailableMaterials] = useState<RawMaterialResponse[]>([]);
+  const { t } = useI18n();
 
   useEffect(() => {
     if (window.electron) {
@@ -445,7 +451,7 @@ function CreateElementInlineModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
       <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl dark:bg-zinc-900" onClick={e => e.stopPropagation()}>
-        <h2 className="mb-4 text-lg font-bold text-zinc-900 dark:text-zinc-100">Create Element</h2>
+        <h2 className="mb-4 text-lg font-bold text-zinc-900 dark:text-zinc-100">{t('elements.newElement')}</h2>
         <form onSubmit={handleSubmit} className="space-y-3">
           <input type="text" value={form.uniqueName} onChange={(e) => setForm(prev => ({ ...prev, uniqueName: e.target.value }))} placeholder="Element name (e.g., Bucket, Lid)" className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-blue-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100" required />
           <input type="text" value={form.label} onChange={(e) => setForm(prev => ({ ...prev, label: e.target.value }))} placeholder="Label (optional — groups in production)" className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-purple-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100" />
@@ -491,7 +497,7 @@ function CreateElementInlineModal({
             <button type="submit" disabled={isSubmitting || !form.uniqueName || !form.color || !form.rawMaterialId} className="flex-1 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
               {isSubmitting ? 'Creating...' : 'Create Element'}
             </button>
-            <button type="button" onClick={onClose} className="rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">Cancel</button>
+            <button type="button" onClick={onClose} className="rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">{t('common.cancel')}</button>
           </div>
         </form>
       </div>

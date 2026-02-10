@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/use-auth';
+import { useI18n, LanguagePicker } from '../lib/i18n';
 import ProductsTab from '../components/features/products-tab';
 import ElementsTab from '../components/features/elements-tab';
 import OrdersTab from '../components/features/orders-tab';
@@ -11,11 +12,22 @@ import StorageTab from '../components/features/storage-tab';
 import StockTab from '../components/features/stock-tab';
 
 // Main navigation tabs
-const NAV_TABS = ['Products', 'Elements', 'Orders', 'Inventory', 'Production', 'Storage', 'Stock'] as const;
-type NavTab = (typeof NAV_TABS)[number];
+const NAV_KEYS = ['Products', 'Elements', 'Orders', 'Inventory', 'Production', 'Storage', 'Stock'] as const;
+type NavTab = (typeof NAV_KEYS)[number];
+
+const NAV_I18N: Record<NavTab, string> = {
+  Products: 'nav.products',
+  Elements: 'nav.elements',
+  Orders: 'nav.orders',
+  Inventory: 'nav.inventory',
+  Production: 'nav.production',
+  Storage: 'nav.storage',
+  Stock: 'nav.stock',
+};
 
 export default function Home() {
   const { user, logout } = useAuth();
+  const { t } = useI18n();
 
   const [activeNav, setActiveNav] = useState<NavTab>('Products');
   const [appVersion, setAppVersion] = useState('');
@@ -38,20 +50,21 @@ export default function Home() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
             </svg>
           </div>
-          <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">Production Management</span>
+          <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">{t('app.title')}</span>
         </div>
         <div className="flex items-center gap-4">
+          <LanguagePicker />
           {appVersion && (
-            <span className="text-xs text-zinc-400 dark:text-zinc-500 tabular-nums">v{appVersion}</span>
+            <span className="text-xs text-zinc-400 dark:text-zinc-500 tabular-nums">{t('app.version')}{appVersion}</span>
           )}
           {updateStatus?.status === 'available' && (
             <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-950/40 dark:text-blue-400">
-              v{updateStatus.version} downloading...
+              v{updateStatus.version} {t('app.updateDownloading')}
             </span>
           )}
           {updateStatus?.status === 'downloading' && (
             <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-950/40 dark:text-blue-400">
-              Downloading {updateStatus.percent}%
+              {t('app.updateDownloading')} {updateStatus.percent}%
             </span>
           )}
           {updateStatus?.status === 'downloaded' && (
@@ -59,17 +72,17 @@ export default function Home() {
               onClick={() => window.electron?.quitAndInstall()}
               className="rounded-full bg-green-100 px-2.5 py-0.5 text-[10px] font-semibold text-green-700 hover:bg-green-200 dark:bg-green-950/40 dark:text-green-400 dark:hover:bg-green-950/60 transition-colors"
             >
-              Update to v{updateStatus.version} — Restart
+              {t('app.updateRestart')} v{updateStatus.version}
             </button>
           )}
           <span className="text-sm text-zinc-500 dark:text-zinc-400">
-            Signed in as <span className="font-medium text-zinc-700 dark:text-zinc-200">{user.username}</span>
+            {t('app.signedIn')} <span className="font-medium text-zinc-700 dark:text-zinc-200">{user.username}</span>
           </span>
           <button
             onClick={logout}
             className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 hover:text-red-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700 dark:hover:text-red-400 dark:focus:ring-offset-zinc-900"
           >
-            Logout
+            {t('app.logout')}
           </button>
         </div>
       </header>
@@ -77,7 +90,7 @@ export default function Home() {
       {/* ===== Main Navigation Tabs ===== */}
       <nav className="border-b border-zinc-200 bg-white px-6 dark:border-zinc-800 dark:bg-zinc-900">
         <div className="flex gap-1">
-          {NAV_TABS.map(tab => (
+          {NAV_KEYS.map(tab => (
             <button
               key={tab}
               onClick={() => setActiveNav(tab)}
@@ -87,7 +100,7 @@ export default function Home() {
                   : 'text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300'
               }`}
             >
-              {tab}
+              {t(NAV_I18N[tab] as any)}
               {activeNav === tab && (
                 <span className="absolute inset-x-0 bottom-0 h-0.5 bg-blue-600 dark:bg-blue-400" />
               )}

@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import ApiBridgeProvider from "../components/api-bridge-provider";
 import AuthGate from "../components/auth-gate";
+import { I18nProvider } from "../lib/i18n";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -30,7 +31,9 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <ApiBridgeProvider>
-          <AuthGate>{children}</AuthGate>
+          <I18nProvider>
+            <AuthGate>{children}</AuthGate>
+          </I18nProvider>
         </ApiBridgeProvider>
       </body>
     </html>

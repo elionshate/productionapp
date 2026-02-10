@@ -2,8 +2,10 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import type { RawMaterialResponse } from '../../types/ipc';
+import { useI18n } from '../../lib/i18n';
 
 export default function StorageTab() {
+  const { t } = useI18n();
   const [rawMaterials, setRawMaterials] = useState<RawMaterialResponse[]>([]);
   const [isLoadingRawMaterials, setIsLoadingRawMaterials] = useState(true);
   const [showCreateRawMaterial, setShowCreateRawMaterial] = useState(false);
@@ -53,7 +55,7 @@ export default function StorageTab() {
       {/* Toolbar */}
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Raw Materials Storage</h2>
+          <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">{t('storage.rawMaterials')}</h2>
           <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
             Manage raw material stock levels. Materials are consumed during production and assembly.
           </p>
@@ -63,7 +65,7 @@ export default function StorageTab() {
             <svg xmlns="http://www.w3.org/2000/svg" className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
-            <input type="text" value={rawMaterialSearch} onChange={(e) => setRawMaterialSearch(e.target.value)} placeholder="Search materials..." className="w-56 rounded-lg border border-zinc-300 bg-white py-2 pl-9 pr-3 text-sm text-zinc-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100" />
+            <input type="text" value={rawMaterialSearch} onChange={(e) => setRawMaterialSearch(e.target.value)} placeholder={t('common.search') + '...'} className="w-56 rounded-lg border border-zinc-300 bg-white py-2 pl-9 pr-3 text-sm text-zinc-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100" />
           </div>
           <button onClick={() => setShowCreateRawMaterial(true)} className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-blue-700">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -77,7 +79,7 @@ export default function StorageTab() {
       {/* Grid */}
       {isLoadingRawMaterials ? (
         <div className="flex items-center justify-center py-20">
-          <div className="text-sm text-zinc-500 dark:text-zinc-400">Loading raw materials...</div>
+          <div className="text-sm text-zinc-500 dark:text-zinc-400">{t('common.loading')}</div>
         </div>
       ) : filteredRawMaterials.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20">
@@ -165,6 +167,7 @@ function RawMaterialCard({
 // ── Create Raw Material Modal ───────────────────────────────
 
 function CreateRawMaterialModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+  const { t } = useI18n();
   const [name, setName] = useState('');
   const [unit, setUnit] = useState('g');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -202,7 +205,7 @@ function CreateRawMaterialModal({ onClose, onCreated }: { onClose: () => void; o
             <button type="submit" disabled={isSubmitting || !name.trim()} className="flex-1 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
               {isSubmitting ? 'Creating...' : 'Add Material'}
             </button>
-            <button type="button" onClick={onClose} className="rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">Cancel</button>
+            <button type="button" onClick={onClose} className="rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">{t('common.cancel')}</button>
           </div>
         </form>
       </div>
@@ -213,6 +216,7 @@ function CreateRawMaterialModal({ onClose, onCreated }: { onClose: () => void; o
 // ── Adjust Stock Modal ──────────────────────────────────────
 
 function AdjustStockModal({ material, onClose, onAdjusted }: { material: RawMaterialResponse; onClose: () => void; onAdjusted: () => void }) {
+  const { t } = useI18n();
   const [amount, setAmount] = useState('');
   const [mode, setMode] = useState<'add' | 'remove'>('add');
   const [reason, setReason] = useState('');
@@ -264,7 +268,7 @@ function AdjustStockModal({ material, onClose, onAdjusted }: { material: RawMate
             <button type="submit" disabled={isSubmitting || !amount || Number(amount) <= 0} className={`flex-1 rounded-lg px-4 py-2 text-sm font-medium text-white disabled:opacity-50 ${mode === 'add' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-red-600 hover:bg-red-700'}`}>
               {isSubmitting ? 'Adjusting...' : mode === 'add' ? 'Add Stock' : 'Remove Stock'}
             </button>
-            <button type="button" onClick={onClose} className="rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">Cancel</button>
+            <button type="button" onClick={onClose} className="rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">{t('common.cancel')}</button>
           </div>
         </form>
       </div>
@@ -275,6 +279,7 @@ function AdjustStockModal({ material, onClose, onAdjusted }: { material: RawMate
 // ── Edit Raw Material Modal ─────────────────────────────────
 
 function EditRawMaterialModal({ material, onClose, onSaved }: { material: RawMaterialResponse; onClose: () => void; onSaved: () => void }) {
+  const { t } = useI18n();
   const [name, setName] = useState(material.name);
   const [unit, setUnit] = useState(material.unit);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -310,9 +315,9 @@ function EditRawMaterialModal({ material, onClose, onSaved }: { material: RawMat
           </div>
           <div className="flex gap-2 pt-2">
             <button type="submit" disabled={isSubmitting || !name.trim()} className="flex-1 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
-              {isSubmitting ? 'Saving...' : 'Save Changes'}
+              {isSubmitting ? 'Saving...' : t('common.save')}
             </button>
-            <button type="button" onClick={onClose} className="rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">Cancel</button>
+            <button type="button" onClick={onClose} className="rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">{t('common.cancel')}</button>
           </div>
         </form>
       </div>
