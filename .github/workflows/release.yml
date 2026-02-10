@@ -28,14 +28,23 @@ jobs:
       - name: Generate Prisma Client
         run: npm run prisma:generate
 
-      - name: Build application
-        run: npm run build:production
-
       - name: Decode and write code-signing certificate
         run: |
           $cert = [System.Convert]::FromBase64String("${{ secrets.WIN_CSC_LINK_BASE64 }}")
           [System.IO.File]::WriteAllBytes("code-signing.pfx", $cert)
           if (Test-Path "code-signing.pfx") { Write-Host "Certificate created successfully" } else { throw "Failed to create certificate" }
+        shell: pwsh
+
+      - name: Validate code-signing certificate
+        env:
+          CERT_PASS: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+        run: |
+          try {
+            $cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2("code-signing.pfx", $env:CERT_PASS)
+            Write-Host "Certificate valid — Subject: $($cert.Subject), Expires: $($cert.NotAfter)"
+          } catch {
+            throw "Certificate validation failed: $_"
+          }
         shell: pwsh
 
       - name: Build and publish Electron app
