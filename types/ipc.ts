@@ -138,6 +138,7 @@ export interface AssemblyProductEntry {
   boxesAssembled: number;
   remaining: number;
   unitsPerBox: number;
+  maxAssemblable: number;
 }
 
 // Excess assembly potential

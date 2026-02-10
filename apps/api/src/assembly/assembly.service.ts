@@ -9,9 +9,16 @@ export class AssemblyService {
   async getOrders() {
     const orders = await this.prisma.order.findMany({
       where: { status: 'in_production' },
-      include: { orderItems: { include: { product: true } } },
+      include: { orderItems: { include: { product: { include: { productElements: { include: { element: true } } } } } } },
       orderBy: { createdAt: 'asc' },
     });
+
+    // Build inventory map once for maxAssemblable calculation
+    const inventoryRecords = await this.prisma.inventory.findMany();
+    const inventoryMap = new Map<string, number>();
+    for (const inv of inventoryRecords) {
+      inventoryMap.set(inv.elementId, inv.totalAmount);
+    }
 
     const result = orders
       .map((order) => ({
@@ -20,17 +27,37 @@ export class AssemblyService {
         clientName: order.clientName,
         createdAt: order.createdAt,
         notes: order.notes,
-        products: order.orderItems.map((item) => ({
-          orderItemId: item.id,
-          productId: item.productId,
-          serialNumber: item.product?.serialNumber ?? 'Unknown',
-          imageUrl: item.product?.imageUrl ?? null,
-          category: item.product?.category ?? '',
-          boxesNeeded: item.boxesNeeded,
-          boxesAssembled: item.boxesAssembled,
-          remaining: item.boxesNeeded - item.boxesAssembled,
-          unitsPerBox: item.product?.unitsPerBox ?? 1,
-        })),
+        products: order.orderItems.map((item) => {
+          // Calculate max assemblable boxes from current inventory
+          let maxAssemblable = 0;
+          const product = item.product;
+          if (product && product.productElements && product.productElements.length > 0) {
+            let maxBoxes = Infinity;
+            for (const pe of product.productElements) {
+              const available = inventoryMap.get(pe.elementId) ?? 0;
+              const rawQtyPerUnit = pe.quantityNeeded;
+              const qtyPerUnit = pe.element?.isDualColor ? Math.ceil(rawQtyPerUnit / 2) : rawQtyPerUnit;
+              const qtyPerBox = qtyPerUnit * product.unitsPerBox;
+              if (qtyPerBox <= 0) continue;
+              const possibleBoxes = Math.floor(available / qtyPerBox);
+              maxBoxes = Math.min(maxBoxes, possibleBoxes);
+            }
+            maxAssemblable = maxBoxes === Infinity ? 0 : maxBoxes;
+          }
+
+          return {
+            orderItemId: item.id,
+            productId: item.productId,
+            serialNumber: product?.serialNumber ?? 'Unknown',
+            imageUrl: product?.imageUrl ?? null,
+            category: product?.category ?? '',
+            boxesNeeded: item.boxesNeeded,
+            boxesAssembled: item.boxesAssembled,
+            remaining: item.boxesNeeded - item.boxesAssembled,
+            unitsPerBox: product?.unitsPerBox ?? 1,
+            maxAssemblable,
+          };
+        }),
       }));
 
     return serialize(result);

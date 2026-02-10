@@ -59,9 +59,7 @@ export async function printAssemblySheet(orderId: string): Promise<void> {
     tableHtml += `<th style="padding:${cellPad};">Label</th>`;
     for (const elId of allElementIds) {
       const el = elementInfoMap.get(elId)!;
-      const displayName = el.label || el.uniqueName;
-      const colorHtml = `<div class="thc"><div class="cd" style="background-color:${colorNameToHex(el.color)};width:${dotSize}px;height:${dotSize}px;" title="${el.color}"></div>${el.isDualColor && el.color2 ? `<div class="cd cdo" style="background-color:${colorNameToHex(el.color2)};width:${dotSize}px;height:${dotSize}px;" title="${el.color2}"></div>` : ''}</div>`;
-      tableHtml += `<th style="padding:${cellPad};">${colorHtml}<span class="thn">${displayName}</span></th>`;
+      tableHtml += `<th style="padding:${cellPad};"><span class="thn">${el.uniqueName}</span></th>`;
     }
     tableHtml += `</tr></thead>`;
 
@@ -89,7 +87,10 @@ export async function printAssemblySheet(orderId: string): Promise<void> {
       for (const elId of allElementIds) {
         const qty = productElementMap.get(elId);
         if (qty !== undefined) {
-          tableHtml += `<td class="cel" style="padding:${cellPad};"><span class="qty">×${qty}</span></td>`;
+          const el = elementInfoMap.get(elId)!;
+          const dot1 = `<div class="cd" style="background-color:${colorNameToHex(el.color)};width:${dotSize}px;height:${dotSize}px;" title="${el.color}"></div>`;
+          const dot2 = el.isDualColor && el.color2 ? `<div class="cd cdo" style="background-color:${colorNameToHex(el.color2)};width:${dotSize}px;height:${dotSize}px;" title="${el.color2}"></div>` : '';
+          tableHtml += `<td class="cel" style="padding:${cellPad};"><div class="thc">${dot1}${dot2}</div><span class="qty">×${qty}</span></td>`;
         } else {
           tableHtml += `<td class="cel cna" style="padding:${cellPad};">—</td>`;
         }

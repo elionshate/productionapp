@@ -76,8 +76,8 @@ export default function InventoryTab() {
     }
   }
 
-  async function handleRecordAssembly(orderId: string, productId: string, boxes: number): Promise<boolean> {
-    if (!window.electron) return false;
+  async function handleRecordAssembly(orderId: string, productId: string, boxes: number): Promise<string | true> {
+    if (!window.electron) return 'Not available';
     try {
       const result = await window.electron.recordAssembly({ orderId, productId, boxesAssembled: boxes });
       if (result.success) {
@@ -93,18 +93,18 @@ export default function InventoryTab() {
         }));
         loadInventory();
         loadExcess();
+        loadAssemblyOrders();
         return true;
       }
-      if (result.error) alert(result.error);
-      return false;
+      return result.error || 'Failed to record assembly';
     } catch (err) {
       console.error('Failed to record assembly:', err);
-      return false;
+      return 'Failed to record assembly';
     }
   }
 
-  async function handleRecordExcessAssembly(productId: string, boxes: number): Promise<boolean> {
-    if (!window.electron) return false;
+  async function handleRecordExcessAssembly(productId: string, boxes: number): Promise<string | true> {
+    if (!window.electron) return 'Not available';
     try {
       const result = await window.electron.recordExcessAssembly({ productId, boxes });
       if (result.success) {
@@ -112,11 +112,10 @@ export default function InventoryTab() {
         loadExcess();
         return true;
       }
-      if (result.error) alert(result.error);
-      return false;
+      return result.error || 'Failed to record excess assembly';
     } catch (err) {
       console.error('Failed to record excess assembly:', err);
-      return false;
+      return 'Failed to record excess assembly';
     }
   }
 
@@ -244,7 +243,7 @@ function AssemblyOrderCard({
   onPrintAssembly,
 }: {
   order: AssemblyOrderData;
-  onRecordAssembly: (orderId: string, productId: string, boxes: number) => Promise<boolean>;
+  onRecordAssembly: (orderId: string, productId: string, boxes: number) => Promise<string | true>;
   excessItems: ExcessAssemblyData[];
   onPrintAssembly: (orderId: string) => void;
 }) {
@@ -299,7 +298,7 @@ function AssemblyProductRow({
 }: {
   product: AssemblyOrderData['products'][0];
   orderId: string;
-  onRecordAssembly: (orderId: string, productId: string, boxes: number) => Promise<boolean>;
+  onRecordAssembly: (orderId: string, productId: string, boxes: number) => Promise<string | true>;
 }) {
   const [inputValue, setInputValue] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -316,10 +315,10 @@ function AssemblyProductRow({
     setError('');
     setIsSubmitting(true);
     try {
-      const ok = await onRecordAssembly(orderId, product.productId, amount);
-      if (ok) { setLocalAssembled(prev => prev + amount); setInputValue(''); }
-      else setError('Failed');
-    } catch { setError('Failed'); }
+      const result = await onRecordAssembly(orderId, product.productId, amount);
+      if (result === true) { setLocalAssembled(prev => prev + amount); setInputValue(''); setError(''); }
+      else { setError(result); setInputValue(''); }
+    } catch { setError('Failed'); setInputValue(''); }
     finally { setIsSubmitting(false); }
   }
 
@@ -352,12 +351,17 @@ function AssemblyProductRow({
       </div>
 
       {!isDone && (
-        <div className="mt-2 flex items-center gap-2 pl-[68px]">
-          <input type="text" inputMode="numeric" pattern="[0-9]*" value={inputValue} onChange={(e) => { const v = e.target.value.replace(/[^0-9]/g, ''); setInputValue(v); setError(''); }} onKeyDown={(e) => e.key === 'Enter' && handleSubmit()} placeholder={`Add (max ${localRemaining})`} className="w-32 rounded-lg border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100" />
-          <button onClick={handleSubmit} disabled={isSubmitting || !inputValue} className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed">
-            {isSubmitting ? '...' : 'Add'}
-          </button>
-          {error && <span className="text-xs text-red-500">{error}</span>}
+        <div className="mt-2 pl-[68px]">
+          <p className="text-[11px] text-zinc-400 dark:text-zinc-500 mb-1">
+            Inventory can make <strong className="text-zinc-600 dark:text-zinc-300">{product.maxAssemblable ?? 0}</strong> box{(product.maxAssemblable ?? 0) !== 1 ? 'es' : ''}
+          </p>
+          <div className="flex items-center gap-2">
+            <input type="text" inputMode="numeric" pattern="[0-9]*" value={inputValue} onChange={(e) => { const v = e.target.value.replace(/[^0-9]/g, ''); setInputValue(v); setError(''); }} onKeyDown={(e) => e.key === 'Enter' && handleSubmit()} placeholder={`Add (max ${localRemaining})`} className="w-32 rounded-lg border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100" />
+            <button onClick={handleSubmit} disabled={isSubmitting || !inputValue} className="rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed">
+              {isSubmitting ? '...' : 'Add'}
+            </button>
+          </div>
+          {error && <p className="mt-1 text-xs text-red-500 break-words max-w-[280px]">{error}</p>}
         </div>
       )}
 
@@ -380,7 +384,7 @@ function ExcessAssemblyCard({
   onRecordExcess,
 }: {
   items: ExcessAssemblyData[];
-  onRecordExcess: (productId: string, boxes: number) => Promise<boolean>;
+  onRecordExcess: (productId: string, boxes: number) => Promise<string | true>;
 }) {
   const { t } = useI18n();
   return (
@@ -410,7 +414,7 @@ function ExcessProductRow({
   onRecordExcess,
 }: {
   item: ExcessAssemblyData;
-  onRecordExcess: (productId: string, boxes: number) => Promise<boolean>;
+  onRecordExcess: (productId: string, boxes: number) => Promise<string | true>;
 }) {
   const [inputValue, setInputValue] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -425,10 +429,10 @@ function ExcessProductRow({
     setError('');
     setIsSubmitting(true);
     try {
-      const ok = await onRecordExcess(item.productId, amount);
-      if (ok) { setInputValue(''); }
-      else setError('Failed');
-    } catch { setError('Failed'); }
+      const result = await onRecordExcess(item.productId, amount);
+      if (result === true) { setInputValue(''); setError(''); }
+      else { setError(result); setInputValue(''); }
+    } catch { setError('Failed'); setInputValue(''); }
     finally { setIsSubmitting(false); }
   }
 
@@ -466,6 +470,7 @@ function ExcessProductRow({
         </div>
       </div>
       {!item.locked && (
+        <>
         <div className="mt-2 flex items-center gap-2 pl-[60px]">
           <input
             type="text"
@@ -480,8 +485,9 @@ function ExcessProductRow({
           <button onClick={handleSubmit} disabled={isSubmitting || !inputValue} className="rounded-lg bg-amber-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed">
             {isSubmitting ? '...' : 'Add'}
           </button>
-          {error && <span className="text-xs text-red-500">{error}</span>}
         </div>
+        {error && <p className="mt-1 pl-[60px] text-xs text-red-500 break-words max-w-[320px]">{error}</p>}
+        </>
       )}
     </div>
   );

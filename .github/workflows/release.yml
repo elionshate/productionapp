@@ -41,6 +41,6 @@ jobs:
       - name: Build and publish Electron app
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
-          WIN_CSC_LINK: code-signing.pfx
-          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+          CSC_LINK: code-signing.pfx
+          CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
         run: npm run electron:build

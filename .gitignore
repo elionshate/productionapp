@@ -43,13 +43,11 @@ next-env.d.ts
 /app/generated/prisma
 
 code-signing.pfx
-# markdown files (except README.md, INSTALL.md, @agent_logs.md, @agent_logs_refactor.md, @refactor_instructions.md and RELEASE_SETUP.md which are docs)
+# markdown files (except README.md, INSTALL.md and @agent_logs.md which are docs)
 *.md
 !README.md
 !INSTALL.md
 !@agent_logs.md
-!@agent_logs_refactor.md
-!@refactor_instructions.md
 !RELEASE_SETUP.md
 
 # Database files

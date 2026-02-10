@@ -1150,3 +1150,52 @@ No new dependencies. All changes use existing React, Next.js, and Electron APIs.
 
 ### Status
 **✅ PHASE 11 COMPLETE** — Multi-language i18n system (EN/SQ/MK) with type-safe translations, assembly print button in inventory tab, order edit restrictions with visual lock/unlock UX, stock tab improved with status messages for incomplete/complete orders. Build passes cleanly. App tested and running.
+
+---
+
+## Phase 12 — Order Item CRUD & Assembly Bug Fixes (2026-02-10)
+
+### Version 0.2.4 Changes
+
+#### 1. Full Order Item Management in Edit Modal
+- Rewrote `EditOrderModal` in `components/features/orders-tab.tsx` to support add/remove/update products
+- Backend: `addOrderItem()`, `removeOrderItem()`, `updateOrderItem()` in `apps/api/src/orders/orders.service.ts`
+- REST endpoints: `POST /orders/:id/items`, `PUT /orders/items/:itemId`, `DELETE /orders/items/:itemId`
+- Full IPC layer: `lib/api-client.ts`, `lib/api-bridge.ts`, `types/ipc.ts` all wired up
+
+#### 2. Assembly Input Freeze Bug Fix
+**Problem:** When user entered more boxes than inventory allowed, backend returned error. Frontend used `alert()` to display it, which blocked React's event loop. After dismissing alert, input froze — user could not type a new value.
+**Root Cause:** `alert()` is synchronous and interrupts React's state batching. The `isSubmitting` and error state updates conflicted with the blocked UI thread.
+**Fix:**
+- Changed return types from `Promise<boolean>` to `Promise<string | true>` — returns error message string instead of `false`
+- Removed ALL `alert()` calls from assembly error handling
+- Errors now display inline as `<p>` elements below input (with `break-words` for long messages)
+- Input cleared after error so user can immediately retry
+- Added `loadAssemblyOrders()` on successful record to refresh maxAssemblable
+
+#### 3. Inventory Assemblable Count Hint
+**Feature:** Shows "Inventory can make **X** box(es)" text above the assembly input field
+**Implementation:**
+- Backend `getOrders()` now queries `productElements` with elements and calculates `maxAssemblable` per product
+- Uses same dual-color halving logic as excess assembly calculation
+- Added `maxAssemblable: number` to `AssemblyProductEntry` type
+- Frontend displays hint in `AssemblyProductRow` above the input
+
+#### 4. electron-builder.json Fix
+- Moved `publisherName: "Elion Shate"` from invalid `win` section position — property is not recognized by electron-builder v26.7.0 in either `win` or `nsis` sections
+- Removed the property entirely; publisher name comes from the code-signing certificate
+
+### Files Modified
+| File | Change |
+|------|--------|
+| `apps/api/src/assembly/assembly.service.ts` | `getOrders()` now includes productElements + calculates maxAssemblable |
+| `apps/api/src/orders/orders.service.ts` | Added addOrderItem, removeOrderItem, updateOrderItem methods |
+| `apps/api/src/orders/orders.controller.ts` | 3 new REST endpoints for order items |
+| `components/features/inventory-tab.tsx` | Freeze fix (no alert), inline errors, assemblable hint text |
+| `components/features/orders-tab.tsx` | Rewrote EditOrderModal with full item CRUD |
+| `lib/api-client.ts` | 3 new order item API functions |
+| `lib/api-bridge.ts` | 3 new bridge methods |
+| `types/ipc.ts` | maxAssemblable field + 3 new ElectronAPI methods |
+| `electron-builder.json` | Removed invalid publisherName from win section |
+| `package.json` | Version 0.2.3 → 0.2.4 |
+| `apps/api/package.json` | Version 0.2.3 → 0.2.4 |

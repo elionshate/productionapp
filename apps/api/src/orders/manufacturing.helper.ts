@@ -12,6 +12,7 @@ export async function generateManufacturingOrders(
   orderItems: Array<{
     productId: string;
     boxesNeeded: number;
+    boxesAssembled?: number;
     product?: {
       unitsPerBox?: number;
       productElements?: Array<{
@@ -31,7 +32,11 @@ export async function generateManufacturingOrders(
     });
     if (existing) continue;
 
-    const totalUnits = item.boxesNeeded * (item.product?.unitsPerBox ?? 1);
+    // Subtract boxes already fulfilled from stock (auto-deducted)
+    const boxesStillNeeded = item.boxesNeeded - (item.boxesAssembled ?? 0);
+    if (boxesStillNeeded <= 0) continue; // Fully fulfilled from stock, no manufacturing needed
+
+    const totalUnits = boxesStillNeeded * (item.product?.unitsPerBox ?? 1);
 
     const mfgOrder = await tx.manufacturingOrder.create({
       data: {

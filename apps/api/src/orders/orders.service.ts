@@ -88,6 +88,7 @@ export class OrdersService {
     }
 
     // Auto-generate manufacturing orders when created as in_production
+    // Re-fetch order items AFTER auto-deduct so boxesAssembled reflects stock applied
     if (status === 'in_production' && data.items.length > 0) {
       const orderWithElements = await this.prisma.order.findUnique({
         where: { id: orderId },
@@ -163,9 +164,22 @@ export class OrdersService {
 
     if (data.status === 'in_production' && order.orderItems) {
       await this.autoDeductProductStock(id);
-      await this.prisma.$transaction(async (tx) => {
-        await generateManufacturingOrders(tx, id, order.orderItems);
+      // Re-fetch order items AFTER auto-deduct so boxesAssembled reflects stock applied
+      const refreshedOrder = await this.prisma.order.findUnique({
+        where: { id },
+        include: {
+          orderItems: {
+            include: {
+              product: { include: { productElements: { include: { element: true } } } },
+            },
+          },
+        },
       });
+      if (refreshedOrder?.orderItems) {
+        await this.prisma.$transaction(async (tx) => {
+          await generateManufacturingOrders(tx, id, refreshedOrder.orderItems);
+        });
+      }
     }
 
     // When shipping, deduct assembled boxes from product_stock
@@ -276,7 +290,10 @@ export class OrdersService {
 
     for (const item of order.orderItems) {
       if (!item.product) continue;
-      const totalUnits = item.boxesNeeded * (item.product.unitsPerBox ?? 1);
+      // Only calculate materials for boxes still needing production
+      const boxesStillNeeded = item.boxesNeeded - (item.boxesAssembled ?? 0);
+      if (boxesStillNeeded <= 0) continue; // Fully fulfilled from stock
+      const totalUnits = boxesStillNeeded * (item.product.unitsPerBox ?? 1);
 
       // Element raw materials
       for (const pe of item.product.productElements ?? []) {
@@ -313,7 +330,7 @@ export class OrdersService {
         const matId = item.product.boxRawMaterialId;
         const existing = materialNeeds.get(matId);
         if (existing) {
-          existing.totalNeeded += item.boxesNeeded;
+          existing.totalNeeded += boxesStillNeeded;
         } else {
           materialNeeds.set(matId, {
             materialId: matId,

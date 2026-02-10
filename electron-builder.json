@@ -38,7 +38,6 @@
     "apps/api/node_modules/better-sqlite3/**/*"
   ],
   "win": {
-    "publisherName": "Elion Shate",
     "target": [
       {
         "target": "nsis",
@@ -47,9 +46,7 @@
     ],
     "icon": "public/icon.ico",
     "artifactName": "${productName}-Setup-${version}.${ext}",
-    "cscLink": "code-signing.pfx",
-    "cscKeyPassword": "ProductionApp2026",
-    "forceCodeSigning": true
+    "forceCodeSigning": false
   },
   "nsis": {
     "oneClick": false,
