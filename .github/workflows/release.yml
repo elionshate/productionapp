@@ -31,10 +31,11 @@ jobs:
       - name: Build application
         run: npm run build:production
 
-      - name: Decode certificate
+      - name: Decode and write code-signing certificate
         run: |
-          $bytes = [Convert]::FromBase64String("${{ secrets.WIN_CSC_LINK_BASE64 }}")
-          [IO.File]::WriteAllBytes("code-signing.pfx", $bytes)
+          $cert = [System.Convert]::FromBase64String("${{ secrets.WIN_CSC_LINK_BASE64 }}")
+          [System.IO.File]::WriteAllBytes("code-signing.pfx", $cert)
+          if (Test-Path "code-signing.pfx") { Write-Host "Certificate created successfully" } else { throw "Failed to create certificate" }
         shell: pwsh
 
       - name: Build and publish Electron app
