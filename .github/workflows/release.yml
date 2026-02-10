@@ -31,7 +31,15 @@ jobs:
       - name: Build application
         run: npm run build:production
 
+      - name: Decode certificate
+        run: |
+          $bytes = [Convert]::FromBase64String("${{ secrets.WIN_CSC_LINK_BASE64 }}")
+          [IO.File]::WriteAllBytes("$env:GITHUB_WORKSPACE\code-signing.pfx", $bytes)
+        shell: pwsh
+
       - name: Build and publish Electron app
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          WIN_CSC_LINK: ${{ github.workspace }}\code-signing.pfx
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
         run: npm run electron:build
