@@ -38,6 +38,7 @@
     "apps/api/node_modules/better-sqlite3/**/*"
   ],
   "win": {
+    "publisherName": "Elion Shate",
     "target": [
       {
         "target": "nsis",
