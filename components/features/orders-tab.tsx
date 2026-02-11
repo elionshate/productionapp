@@ -7,16 +7,19 @@ import OrderItemsModal from '../order-items-modal';
 import OrderDetailModal from '../order-detail-modal';
 import type { OrderResponse } from '../../types/ipc';
 import { useI18n } from '../../lib/i18n';
+import { useDebouncedValue } from '../../hooks/use-debounce';
 
 export default function OrdersTab() {
   const [orders, setOrders] = useState<OrderResponse[]>([]);
   const [isLoadingOrders, setIsLoadingOrders] = useState(true);
   const [orderSearch, setOrderSearch] = useState('');
+  const debouncedSearch = useDebouncedValue(orderSearch, 300);
   const [orderStatusFilter, setOrderStatusFilter] = useState<string>('All');
   const [showCreateOrder, setShowCreateOrder] = useState(false);
   const [orderItemsModal, setOrderItemsModal] = useState<{ orderId: string; orderNumber: number } | null>(null);
   const [orderDetailModal, setOrderDetailModal] = useState<OrderResponse | null>(null);
   const [editOrderModal, setEditOrderModal] = useState<OrderResponse | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
   const { t } = useI18n();
 
   const filteredOrders = useMemo(() => {
@@ -24,15 +27,15 @@ export default function OrdersTab() {
     if (orderStatusFilter !== 'All') {
       filtered = filtered.filter(o => o.status === orderStatusFilter);
     }
-    if (orderSearch.trim()) {
-      const q = orderSearch.trim().toLowerCase();
+    if (debouncedSearch.trim()) {
+      const q = debouncedSearch.trim().toLowerCase();
       filtered = filtered.filter(o =>
         o.clientName.toLowerCase().includes(q) ||
         String(o.orderNumber).includes(q)
       );
     }
     return filtered;
-  }, [orders, orderStatusFilter, orderSearch]);
+  }, [orders, orderStatusFilter, debouncedSearch]);
 
   useEffect(() => {
     loadOrders();
@@ -62,7 +65,8 @@ export default function OrdersTab() {
   }
 
   async function handleStartProduction(id: string) {
-    if (!window.electron) return;
+    if (!window.electron || isProcessing) return;
+    setIsProcessing(true);
     try {
       const result = await window.electron.updateOrder(id, { status: 'in_production' });
       if (result.success) {
@@ -80,11 +84,14 @@ export default function OrdersTab() {
       }
     } catch (err) {
       console.error('Failed to start production:', err);
+    } finally {
+      setIsProcessing(false);
     }
   }
 
   async function handleShipOrder(id: string) {
-    if (!window.electron) return;
+    if (!window.electron || isProcessing) return;
+    setIsProcessing(true);
     try {
       const result = await window.electron.updateOrder(id, { status: 'shipped' });
       if (result.success) {
@@ -94,11 +101,14 @@ export default function OrdersTab() {
       }
     } catch (err) {
       console.error('Failed to ship order:', err);
+    } finally {
+      setIsProcessing(false);
     }
   }
 
   async function handleDeleteOrder(id: string) {
-    if (!window.electron) return;
+    if (!window.electron || isProcessing) return;
+    setIsProcessing(true);
     try {
       const result = await window.electron.deleteOrder(id);
       if (result.success) {
@@ -110,6 +120,8 @@ export default function OrdersTab() {
     } catch (err) {
       console.error('Failed to delete order:', err);
       throw err;
+    } finally {
+      setIsProcessing(false);
     }
   }
 

@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import type { InventoryResponse, AssemblyOrderData, ExcessAssemblyData } from '../../types/ipc';
+import { useState, useEffect, memo } from 'react';
+import type { InventoryResponse, AssemblyOrderData, ExcessAssemblyData, ElementResponse } from '../../types/ipc';
 import { colorNameToHex } from '../../lib/utils';
 import { printAssemblySheet } from '../../lib/print-assembly';
 import { useI18n } from '../../lib/i18n';
@@ -13,12 +13,16 @@ export default function InventoryTab() {
   const [isLoadingAssembly, setIsLoadingAssembly] = useState(true);
   const [excessItems, setExcessItems] = useState<ExcessAssemblyData[]>([]);
   const [isLoadingExcess, setIsLoadingExcess] = useState(true);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [showAddInventory, setShowAddInventory] = useState(false);
+  const [allElements, setAllElements] = useState<ElementResponse[]>([]);
   const { t } = useI18n();
 
   useEffect(() => {
     loadInventory();
     loadAssemblyOrders();
     loadExcess();
+    loadElements();
   }, []);
 
   async function loadInventory() {
@@ -37,7 +41,8 @@ export default function InventoryTab() {
   }
 
   async function handleDeleteInventory(id: string) {
-    if (!window.electron) return;
+    if (!window.electron || isProcessing) return;
+    setIsProcessing(true);
     try {
       const result = await window.electron.deleteInventory(id);
       if (result.success) {
@@ -47,6 +52,8 @@ export default function InventoryTab() {
       }
     } catch (err) {
       console.error('Failed to delete inventory:', err);
+    } finally {
+      setIsProcessing(false);
     }
   }
 
@@ -73,6 +80,35 @@ export default function InventoryTab() {
       console.error('Failed to load excess assembly:', err);
     } finally {
       setIsLoadingExcess(false);
+    }
+  }
+
+  async function loadElements() {
+    if (!window.electron) return;
+    try {
+      const result = await window.electron.getElements();
+      if (result.success) setAllElements(result.data);
+    } catch (err) {
+      console.error('Failed to load elements:', err);
+    }
+  }
+
+  async function handleManualAddInventory(elementId: string, quantity: number): Promise<string | true> {
+    if (!window.electron) return 'Not available';
+    try {
+      const result = await window.electron.adjustInventory({
+        elementId,
+        changeAmount: quantity,
+        reason: 'Manual addition',
+      });
+      if (result.success) {
+        loadInventory();
+        return true;
+      }
+      return result.error || 'Failed to add inventory';
+    } catch (err) {
+      console.error('Failed to add inventory:', err);
+      return 'Failed to add inventory';
     }
   }
 
@@ -134,7 +170,18 @@ export default function InventoryTab() {
             <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">{t('inventory.title')}</h2>
             <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">{t('inventory.subtitle')}</p>
           </div>
-          <button onClick={loadInventory} className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700">{t('common.refresh')}</button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowAddInventory(true)}
+              className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-blue-700"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+              </svg>
+              {t('inventory.addManual')}
+            </button>
+            <button onClick={loadInventory} className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700">{t('common.refresh')}</button>
+          </div>
         </div>
 
         {isLoadingInventory ? (
@@ -230,13 +277,149 @@ export default function InventoryTab() {
           </div>
         )}
       </div>
+
+      {/* Add Inventory Modal */}
+      {showAddInventory && (
+        <AddInventoryModal
+          elements={allElements}
+          onClose={() => setShowAddInventory(false)}
+          onAdded={(elementId, quantity) => {
+            handleManualAddInventory(elementId, quantity).then(result => {
+              if (result === true) {
+                setShowAddInventory(false);
+              } else {
+                alert(result);
+              }
+            });
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── Add Inventory Modal ─────────────────────────────────────
+
+function AddInventoryModal({
+  elements,
+  onClose,
+  onAdded,
+}: {
+  elements: ElementResponse[];
+  onClose: () => void;
+  onAdded: (elementId: string, quantity: number) => void;
+}) {
+  const [selectedElementId, setSelectedElementId] = useState('');
+  const [quantity, setQuantity] = useState('');
+  const [error, setError] = useState('');
+  const [elementSearch, setElementSearch] = useState('');
+  const { t } = useI18n();
+
+  const filteredElements = elements.filter(e => {
+    if (!elementSearch.trim()) return true;
+    const q = elementSearch.trim().toLowerCase();
+    return e.uniqueName.toLowerCase().includes(q) || e.color.toLowerCase().includes(q);
+  });
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!selectedElementId) { setError(t('inventory.selectElement')); return; }
+    const qty = parseInt(quantity, 10);
+    if (isNaN(qty) || qty <= 0) { setError(t('inventory.validQuantity')); return; }
+    setError('');
+    onAdded(selectedElementId, qty);
+  }
+
+  const selectedElement = elements.find(e => e.id === selectedElementId);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
+      <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl dark:bg-zinc-900" onClick={e => e.stopPropagation()}>
+        <h2 className="mb-4 text-lg font-bold text-zinc-900 dark:text-zinc-100">{t('inventory.addManual')}</h2>
+        <form onSubmit={handleSubmit} className="space-y-3">
+          {/* Element search and select */}
+          <div>
+            <label className="text-xs text-zinc-500 dark:text-zinc-400 mb-1 block">{t('inventory.element')}</label>
+            <input
+              type="text"
+              value={elementSearch}
+              onChange={(e) => setElementSearch(e.target.value)}
+              placeholder={t('inventory.searchElement')}
+              className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-blue-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 mb-2"
+            />
+            <div className="max-h-40 overflow-y-auto rounded-lg border border-zinc-200 dark:border-zinc-700">
+              {filteredElements.length === 0 ? (
+                <p className="px-3 py-2 text-xs text-zinc-400">{t('inventory.noElementsMatch')}</p>
+              ) : (
+                filteredElements.map(el => (
+                  <button
+                    key={el.id}
+                    type="button"
+                    onClick={() => { setSelectedElementId(el.id); setError(''); }}
+                    className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors ${
+                      selectedElementId === el.id
+                        ? 'bg-blue-50 text-blue-700 dark:bg-blue-950/30 dark:text-blue-400'
+                        : 'text-zinc-700 hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-zinc-800'
+                    }`}
+                  >
+                    <div
+                      className="h-4 w-4 rounded-full border border-zinc-300 dark:border-zinc-600 flex-shrink-0"
+                      style={{ backgroundColor: colorNameToHex(el.color) }}
+                    />
+                    <span className="truncate">{el.uniqueName}</span>
+                    <span className="ml-auto text-xs text-zinc-400">{el.color}</span>
+                  </button>
+                ))
+              )}
+            </div>
+            {selectedElement && (
+              <p className="mt-1 text-xs text-blue-600 dark:text-blue-400">
+                {t('inventory.selected')}: {selectedElement.uniqueName} ({selectedElement.color})
+              </p>
+            )}
+          </div>
+
+          {/* Quantity */}
+          <div>
+            <label className="text-xs text-zinc-500 dark:text-zinc-400 mb-1 block">{t('inventory.quantity')}</label>
+            <input
+              type="number"
+              min="1"
+              value={quantity}
+              onChange={(e) => { setQuantity(e.target.value); setError(''); }}
+              placeholder={t('inventory.enterQuantity')}
+              className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-blue-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+              required
+            />
+          </div>
+
+          {error && <p className="text-xs text-red-500">{error}</p>}
+
+          <div className="flex gap-2 pt-2">
+            <button
+              type="submit"
+              disabled={!selectedElementId || !quantity}
+              className="flex-1 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+            >
+              {t('inventory.addToInventory')}
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+            >
+              {t('common.cancel')}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }
 
 // ── Assembly Order Card ─────────────────────────────────────
 
-function AssemblyOrderCard({
+const AssemblyOrderCard = memo(function AssemblyOrderCard({
   order,
   onRecordAssembly,
   excessItems,
@@ -287,11 +470,11 @@ function AssemblyOrderCard({
       </div>
     </div>
   );
-}
+});
 
 // ── Assembly Product Row ────────────────────────────────────
 
-function AssemblyProductRow({
+const AssemblyProductRow = memo(function AssemblyProductRow({
   product,
   orderId,
   onRecordAssembly,
@@ -375,11 +558,11 @@ function AssemblyProductRow({
       )}
     </div>
   );
-}
+});
 
 // ── Excess Assembly Card ────────────────────────────────────
 
-function ExcessAssemblyCard({
+const ExcessAssemblyCard = memo(function ExcessAssemblyCard({
   items,
   onRecordExcess,
 }: {
@@ -405,11 +588,11 @@ function ExcessAssemblyCard({
       </div>
     </div>
   );
-}
+});
 
 // ── Excess Product Row ──────────────────────────────────────
 
-function ExcessProductRow({
+const ExcessProductRow = memo(function ExcessProductRow({
   item,
   onRecordExcess,
 }: {
@@ -491,4 +674,4 @@ function ExcessProductRow({
       )}
     </div>
   );
-}
+});

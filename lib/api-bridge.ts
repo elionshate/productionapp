@@ -96,6 +96,8 @@ export function initializeApiBridge() {
     getStockOrders: () => api.getStockOrders(),
     getProductStock: () => api.getProductStock(),
     getProductStockById: (productId: string) => api.getProductStockById(productId),
+    applyStockToOrder: (data: { orderId: string; productId: string; boxes: number }) =>
+      api.applyStockToOrder(data),
 
     // ========== RAW MATERIALS ==========
     getRawMaterials: () => api.getRawMaterials(),

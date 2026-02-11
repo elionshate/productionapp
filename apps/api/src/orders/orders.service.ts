@@ -82,13 +82,9 @@ export class OrdersService {
       }
     }
 
-    // Auto-deduct from existing product stock (excess assembly)
-    if (status === 'in_production') {
-      await this.autoDeductProductStock(orderId);
-    }
+    // Stock is no longer auto-applied — user manually applies excess stock via the Stock tab
 
     // Auto-generate manufacturing orders when created as in_production
-    // Re-fetch order items AFTER auto-deduct so boxesAssembled reflects stock applied
     if (status === 'in_production' && data.items.length > 0) {
       const orderWithElements = await this.prisma.order.findUnique({
         where: { id: orderId },
@@ -163,8 +159,8 @@ export class OrdersService {
     });
 
     if (data.status === 'in_production' && order.orderItems) {
-      await this.autoDeductProductStock(id);
-      // Re-fetch order items AFTER auto-deduct so boxesAssembled reflects stock applied
+      // Stock is no longer auto-applied — user manually applies excess stock via the Stock tab
+      // Generate manufacturing orders for the newly-in-production order
       const refreshedOrder = await this.prisma.order.findUnique({
         where: { id },
         include: {
@@ -182,74 +178,16 @@ export class OrdersService {
       }
     }
 
-    // When shipping, deduct assembled boxes from product_stock
-    if (data.status === 'shipped' && order.orderItems) {
-      await this.deductProductStockOnShip(id);
-    }
+    // Stock deduction is no longer needed on ship since ProductStock now
+    // exclusively represents true excess stock. Manual stock-to-order application
+    // already decrements ProductStock when the user applies it.
 
-    // Re-fetch to reflect auto-deduction changes
+    // Re-fetch to reflect changes
     const updatedOrder = await this.prisma.order.findUnique({
       where: { id },
       include: this.defaultInclude,
     });
     return serialize(updatedOrder);
-  }
-
-  /**
-   * Auto-deduct from existing product stock when an order goes into production.
-   * If a product already has boxes in stock (from excess assembly), apply them
-   * to the order items and decrement the stock.
-   */
-  private async autoDeductProductStock(orderId: string) {
-    const orderItems = await this.prisma.orderItem.findMany({
-      where: { orderId },
-    });
-
-    for (const item of orderItems) {
-      const stock = await this.prisma.productStock.findUnique({
-        where: { productId: item.productId },
-      });
-      if (!stock || stock.stockBoxedAmount <= 0) continue;
-
-      const remaining = item.boxesNeeded - item.boxesAssembled;
-      if (remaining <= 0) continue;
-
-      const toApply = Math.min(stock.stockBoxedAmount, remaining);
-      await this.prisma.$transaction(async (tx) => {
-        await tx.orderItem.update({
-          where: { id: item.id },
-          data: { boxesAssembled: { increment: toApply } },
-        });
-        await tx.productStock.update({
-          where: { productId: item.productId },
-          data: { stockBoxedAmount: { decrement: toApply } },
-        });
-      });
-    }
-  }
-
-  /**
-   * Deduct assembled boxes from product_stock when an order is shipped.
-   * The assembled boxes are leaving the warehouse, so remove them from stock.
-   */
-  private async deductProductStockOnShip(orderId: string) {
-    const orderItems = await this.prisma.orderItem.findMany({
-      where: { orderId },
-    });
-
-    for (const item of orderItems) {
-      if (item.boxesAssembled <= 0) continue;
-      const stock = await this.prisma.productStock.findUnique({
-        where: { productId: item.productId },
-      });
-      if (!stock || stock.stockBoxedAmount <= 0) continue;
-
-      const toDeduct = Math.min(stock.stockBoxedAmount, item.boxesAssembled);
-      await this.prisma.productStock.update({
-        where: { productId: item.productId },
-        data: { stockBoxedAmount: { decrement: toDeduct } },
-      });
-    }
   }
 
   /**

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, memo } from 'react';
 import type { ProductionOrderData, ProductionElementGroup } from '../types/ipc';
 import { colorNameToHex } from '../lib/utils';
 import { useI18n } from '../lib/i18n';
@@ -27,7 +27,7 @@ function formatWeight(grams: number): string {
   return `${grams.toFixed(1)} g`;
 }
 
-export default function ProductionOrderCard({ order, onRecordProduction, onPrint, onPrintAssembly }: ProductionOrderCardProps) {
+const ProductionOrderCard = memo(function ProductionOrderCard({ order, onRecordProduction, onPrint, onPrintAssembly }: ProductionOrderCardProps) {
   const { t } = useI18n();
   return (
     <div className="rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
@@ -109,7 +109,7 @@ export default function ProductionOrderCard({ order, onRecordProduction, onPrint
       </div>
     </div>
   );
-}
+});
 
 // ──────────────────────────────────────────────────────────────
 // Element Row (inside order card)
@@ -267,3 +267,5 @@ function ProductionElementRow({ element, orderId, onRecordProduction }: Producti
     </div>
   );
 }
+
+export default ProductionOrderCard;

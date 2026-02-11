@@ -43,12 +43,11 @@ next-env.d.ts
 /app/generated/prisma
 
 code-signing.pfx
-# markdown files (except README.md, INSTALL.md and @agent_logs.md which are docs)
+# markdown files (except README.md and INSTALL.md which are docs)
+# @agent_logs.md and @agent_instructions.md are LOCAL-ONLY agent files — kept ignored so git pull never deletes them
 *.md
 !README.md
 !INSTALL.md
-!@agent_logs_refactor.md
-!@refactor_instructions.md
 
 # Database files
 *.db

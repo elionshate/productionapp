@@ -308,11 +308,10 @@ export class AssemblyService {
 
     await this.prisma.$transaction(async (tx) => {
       await tx.orderItem.update({ where: { id: orderItem.id }, data: { boxesAssembled: newTotal } });
-      await tx.productStock.upsert({
-        where: { productId },
-        create: { productId, stockBoxedAmount: boxesAssembled },
-        update: { stockBoxedAmount: { increment: boxesAssembled } },
-      });
+
+      // NOTE: Do NOT update productStock here — order-bound assembly should only
+      // touch orderItem.boxesAssembled. ProductStock is exclusively for true excess
+      // stock recorded via recordExcessAssembly().
 
       for (const pe of product.productElements) {
         const rawQty = pe.quantityNeeded * totalUnitsAssembled;

@@ -433,6 +433,7 @@ export interface ElectronAPI {
 
   // ========== STOCK ORDERS ==========
   getStockOrders: () => Promise<IPCResponse<StockOrderData[]>>;
+  applyStockToOrder: (data: { orderId: string; productId: string; boxes: number }) => Promise<IPCResponse<{ orderId: string; productId: string; boxesApplied: number; newBoxesAssembled: number; newStockAmount: number }>>;
 
   // ========== INVENTORY ==========
   getInventory: () => Promise<IPCResponse<InventoryResponse[]>>;

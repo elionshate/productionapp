@@ -1,16 +1,19 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, memo } from 'react';
 import type { ElementResponse, RawMaterialResponse } from '../../types/ipc';
 import { colorNameToHex } from '../../lib/utils';
 import { useI18n } from '../../lib/i18n';
+import { useDebouncedValue } from '../../hooks/use-debounce';
 
 export default function ElementsTab() {
   const [elements, setElements] = useState<ElementResponse[]>([]);
   const [isLoadingElements, setIsLoadingElements] = useState(true);
   const [showCreateElement, setShowCreateElement] = useState(false);
   const [elementSearch, setElementSearch] = useState('');
+  const debouncedSearch = useDebouncedValue(elementSearch, 300);
   const [activeElementCategory, setActiveElementCategory] = useState<string>('All');
+  const [isProcessing, setIsProcessing] = useState(false);
   const { t } = useI18n();
 
   const elementCategories = useMemo(() => {
@@ -23,8 +26,8 @@ export default function ElementsTab() {
     if (activeElementCategory !== 'All') {
       filtered = filtered.filter(e => e.uniqueName === activeElementCategory);
     }
-    if (elementSearch.trim()) {
-      const q = elementSearch.trim().toLowerCase();
+    if (debouncedSearch.trim()) {
+      const q = debouncedSearch.trim().toLowerCase();
       filtered = filtered.filter(e =>
         e.uniqueName.toLowerCase().includes(q) ||
         e.color.toLowerCase().includes(q) ||
@@ -32,7 +35,7 @@ export default function ElementsTab() {
       );
     }
     return filtered;
-  }, [elements, elementSearch, activeElementCategory]);
+  }, [elements, debouncedSearch, activeElementCategory]);
 
   useEffect(() => {
     loadElements();
@@ -52,7 +55,8 @@ export default function ElementsTab() {
   }
 
   async function handleDeleteElement(id: string) {
-    if (!window.electron) return;
+    if (!window.electron || isProcessing) return;
+    setIsProcessing(true);
     try {
       const result = await window.electron.deleteElement(id);
       if (result.success) {
@@ -62,11 +66,14 @@ export default function ElementsTab() {
       }
     } catch (err) {
       console.error('Failed to delete element:', err);
+    } finally {
+      setIsProcessing(false);
     }
   }
 
   async function handleCloneElement(element: ElementResponse) {
-    if (!window.electron) return;
+    if (!window.electron || isProcessing) return;
+    setIsProcessing(true);
     try {
       const result = await window.electron.createElement({
         uniqueName: element.uniqueName,
@@ -86,6 +93,8 @@ export default function ElementsTab() {
       }
     } catch (err) {
       console.error('Failed to clone element:', err);
+    } finally {
+      setIsProcessing(false);
     }
   }
 
@@ -188,7 +197,7 @@ export default function ElementsTab() {
 
 // ── Element Card ────────────────────────────────────────────
 
-function ElementCard({
+const ElementCard = memo(function ElementCard({
   element,
   onDelete,
   onClone,
@@ -375,7 +384,7 @@ function ElementCard({
       </div>
     </div>
   );
-}
+});
 
 // ── Create Element Inline Modal ─────────────────────────────
 

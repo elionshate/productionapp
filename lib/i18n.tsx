@@ -135,6 +135,16 @@ type TranslationKeys = {
   'inventory.extraBoxes': string;
   'inventory.addMax': string;
   'inventory.deleteConfirm': string;
+  'inventory.addManual': string;
+  'inventory.element': string;
+  'inventory.searchElement': string;
+  'inventory.noElementsMatch': string;
+  'inventory.selected': string;
+  'inventory.quantity': string;
+  'inventory.enterQuantity': string;
+  'inventory.addToInventory': string;
+  'inventory.selectElement': string;
+  'inventory.validQuantity': string;
 
   // ── Stock Tab ──
   'stock.title': string;
@@ -143,11 +153,16 @@ type TranslationKeys = {
   'stock.noDataHint': string;
   'stock.excessStock': string;
   'stock.excessSubtitle': string;
+  'stock.excessSubtitleManual': string;
   'stock.noExcess': string;
   'stock.noExcessHint': string;
   'stock.totalBoxes': string;
   'stock.orderComplete': string;
   'stock.orderIncomplete': string;
+  'stock.applyFromStock': string;
+  'stock.available': string;
+  'stock.apply': string;
+  'stock.applyFailed': string;
 
   // ── Storage Tab ──
   'storage.title': string;
@@ -293,6 +308,16 @@ const translations: Record<Language, TranslationKeys> = {
     'inventory.extraBoxes': 'extra',
     'inventory.addMax': 'Add (max',
     'inventory.deleteConfirm': 'Delete inventory for',
+    'inventory.addManual': 'Add Inventory',
+    'inventory.element': 'Element',
+    'inventory.searchElement': 'Search elements...',
+    'inventory.noElementsMatch': 'No elements match',
+    'inventory.selected': 'Selected',
+    'inventory.quantity': 'Quantity',
+    'inventory.enterQuantity': 'Enter quantity',
+    'inventory.addToInventory': 'Add to Inventory',
+    'inventory.selectElement': 'Please select an element',
+    'inventory.validQuantity': 'Enter a valid quantity (≥ 1)',
 
     'stock.title': 'Stock Overview',
     'stock.subtitle': 'Completed boxes per order & excess stock',
@@ -300,11 +325,16 @@ const translations: Record<Language, TranslationKeys> = {
     'stock.noDataHint': 'Assemble boxes in the Inventory tab to see stock here.',
     'stock.excessStock': 'Excess Stock',
     'stock.excessSubtitle': 'Boxes assembled from excess inventory (auto-applied to new orders)',
+    'stock.excessSubtitleManual': 'Boxes assembled from excess inventory (apply manually to orders via buttons)',
     'stock.noExcess': 'No excess stock',
     'stock.noExcessHint': 'Assemble excess boxes from the Inventory tab to build stock.',
     'stock.totalBoxes': 'total boxes',
     'stock.orderComplete': 'Order complete — ready to ship',
     'stock.orderIncomplete': 'Not all products assembled yet',
+    'stock.applyFromStock': 'Apply from stock',
+    'stock.available': 'available',
+    'stock.apply': 'Apply',
+    'stock.applyFailed': 'Failed to apply stock to order',
 
     'storage.title': 'Storage',
     'storage.rawMaterials': 'Raw Materials',
@@ -441,6 +471,16 @@ const translations: Record<Language, TranslationKeys> = {
     'inventory.extraBoxes': 'shtesë',
     'inventory.addMax': 'Shto (max',
     'inventory.deleteConfirm': 'Fshi inventarin për',
+    'inventory.addManual': 'Shto Inventar',
+    'inventory.element': 'Elementi',
+    'inventory.searchElement': 'Kërko elemente...',
+    'inventory.noElementsMatch': 'Nuk ka elemente përputhëse',
+    'inventory.selected': 'Zgjedhur',
+    'inventory.quantity': 'Sasia',
+    'inventory.enterQuantity': 'Vendos sasinë',
+    'inventory.addToInventory': 'Shto në Inventar',
+    'inventory.selectElement': 'Ju lutem zgjidhni një element',
+    'inventory.validQuantity': 'Vendos një sasi të vlefshme (≥ 1)',
 
     'stock.title': 'Pasqyra e Stokut',
     'stock.subtitle': 'Kutitë e përfunduara për porosi dhe stoku shtesë',
@@ -448,11 +488,16 @@ const translations: Record<Language, TranslationKeys> = {
     'stock.noDataHint': 'Monto kuti në skedën e Inventarit për të parë stokun këtu.',
     'stock.excessStock': 'Stoku Shtesë',
     'stock.excessSubtitle': 'Kuti të montuara nga inventari shtesë (aplikohen automatikisht në porositë e reja)',
+    'stock.excessSubtitleManual': 'Kuti të montuara nga inventari shtesë (apliko manualisht në porosi me butonat)',
     'stock.noExcess': 'Nuk ka stok shtesë',
     'stock.noExcessHint': 'Monto kuti shtesë nga skeda e Inventarit për të ndërtuar stok.',
     'stock.totalBoxes': 'kuti gjithsej',
     'stock.orderComplete': 'Porosia e plotë — gati për dërgim',
     'stock.orderIncomplete': 'Jo të gjitha produktet janë montuar ende',
+    'stock.applyFromStock': 'Apliko nga stoku',
+    'stock.available': 'të disponueshme',
+    'stock.apply': 'Apliko',
+    'stock.applyFailed': 'Dështoi aplikimi i stokut në porosi',
 
     'storage.title': 'Magazina',
     'storage.rawMaterials': 'Lëndë e parë',
@@ -589,6 +634,16 @@ const translations: Record<Language, TranslationKeys> = {
     'inventory.extraBoxes': 'додатни',
     'inventory.addMax': 'Додај (макс',
     'inventory.deleteConfirm': 'Избриши инвентар за',
+    'inventory.addManual': 'Додај Инвентар',
+    'inventory.element': 'Елемент',
+    'inventory.searchElement': 'Пребарај елементи...',
+    'inventory.noElementsMatch': 'Нема совпаѓачки елементи',
+    'inventory.selected': 'Избрано',
+    'inventory.quantity': 'Количина',
+    'inventory.enterQuantity': 'Внесете количина',
+    'inventory.addToInventory': 'Додај во Инвентар',
+    'inventory.selectElement': 'Ве молиме изберете елемент',
+    'inventory.validQuantity': 'Внесете валидна количина (≥ 1)',
 
     'stock.title': 'Преглед на Залиха',
     'stock.subtitle': 'Завршени кутии по нарачка и вишок залиха',
@@ -596,11 +651,16 @@ const translations: Record<Language, TranslationKeys> = {
     'stock.noDataHint': 'Склопете кутии во табот Инвентар за да ја видите залихата тука.',
     'stock.excessStock': 'Вишок Залиха',
     'stock.excessSubtitle': 'Кутии склопени од вишок инвентар (автоматски се применуваат на нови нарачки)',
+    'stock.excessSubtitleManual': 'Кутии склопени од вишок инвентар (применете мануелно на нарачки со копчиња)',
     'stock.noExcess': 'Нема вишок залиха',
     'stock.noExcessHint': 'Склопете вишок кутии од табот Инвентар за да создадете залиха.',
     'stock.totalBoxes': 'вкупно кутии',
     'stock.orderComplete': 'Нарачка завршена — подготвена за испраќање',
     'stock.orderIncomplete': 'Не сите производи се склопени',
+    'stock.applyFromStock': 'Примени од залиха',
+    'stock.available': 'достапни',
+    'stock.apply': 'Примени',
+    'stock.applyFailed': 'Неуспешно применување на залиха на нарачка',
 
     'storage.title': 'Складиште',
     'storage.rawMaterials': 'Суровини',

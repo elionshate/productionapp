@@ -8,6 +8,16 @@ import { ServerManager } from './server-manager';
 // Replaces ESM-only 'electron-is-dev' package (v3.x is not compatible with CJS)
 const isDev = !app.isPackaged;
 
+// ── Single Instance Lock ────────────────────────────────────
+// Prevents multiple instances from running simultaneously, which causes
+// database locks, memory exhaustion, and freezing on low-end hardware.
+const gotTheLock = app.requestSingleInstanceLock();
+
+if (!gotTheLock) {
+  // Another instance is already running — quit immediately
+  app.quit();
+}
+
 let mainWindow: BrowserWindow | null = null;
 const serverManager = new ServerManager();
 
@@ -58,6 +68,14 @@ protocol.registerSchemesAsPrivileged([
 ]);
 
 app.whenReady().then(async () => {
+  // When a second instance tries to launch, focus the existing window
+  app.on('second-instance', () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
+    }
+  });
+
   try {
     // Register protocol handler for serving static files
     if (!useDevServer) {

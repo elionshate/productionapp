@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import type { RawMaterialResponse } from '../../types/ipc';
 import { useI18n } from '../../lib/i18n';
+import { useDebouncedValue } from '../../hooks/use-debounce';
 
 export default function StorageTab() {
   const { t } = useI18n();
@@ -10,14 +11,16 @@ export default function StorageTab() {
   const [isLoadingRawMaterials, setIsLoadingRawMaterials] = useState(true);
   const [showCreateRawMaterial, setShowCreateRawMaterial] = useState(false);
   const [rawMaterialSearch, setRawMaterialSearch] = useState('');
+  const debouncedSearch = useDebouncedValue(rawMaterialSearch, 300);
   const [adjustStockModal, setAdjustStockModal] = useState<RawMaterialResponse | null>(null);
   const [editRawMaterialModal, setEditRawMaterialModal] = useState<RawMaterialResponse | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const filteredRawMaterials = useMemo(() => {
-    if (!rawMaterialSearch.trim()) return rawMaterials;
-    const q = rawMaterialSearch.trim().toLowerCase();
+    if (!debouncedSearch.trim()) return rawMaterials;
+    const q = debouncedSearch.trim().toLowerCase();
     return rawMaterials.filter(m => m.name.toLowerCase().includes(q) || m.unit.toLowerCase().includes(q));
-  }, [rawMaterials, rawMaterialSearch]);
+  }, [rawMaterials, debouncedSearch]);
 
   useEffect(() => {
     loadRawMaterials();
@@ -37,7 +40,8 @@ export default function StorageTab() {
   }
 
   async function handleDeleteRawMaterial(id: string) {
-    if (!window.electron) return;
+    if (!window.electron || isProcessing) return;
+    setIsProcessing(true);
     try {
       const result = await window.electron.deleteRawMaterial(id);
       if (result.success) {
@@ -47,6 +51,8 @@ export default function StorageTab() {
       }
     } catch {
       alert('Failed to delete raw material');
+    } finally {
+      setIsProcessing(false);
     }
   }
 

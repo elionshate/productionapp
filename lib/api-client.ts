@@ -211,6 +211,8 @@ export const getStockOrders = () => get('/stock/orders');
 export const getProductStock = () => get('/stock/products');
 export const getProductStockById = (productId: string) =>
   get(`/stock/products/${productId}`);
+export const applyStockToOrder = (data: { orderId: string; productId: string; boxes: number }) =>
+  post('/stock/apply-to-order', data);
 
 // ========== RAW MATERIALS ==========
 export const getRawMaterials = () => get('/raw-materials');

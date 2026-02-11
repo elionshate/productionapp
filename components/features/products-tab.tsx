@@ -6,6 +6,7 @@ import CreateProductModal from '../create-product-modal';
 import ProductElementsModal from '../product-elements-modal';
 import type { ProductResponse, RawMaterialResponse } from '../../types/ipc';
 import { useI18n } from '../../lib/i18n';
+import { useDebouncedValue } from '../../hooks/use-debounce';
 
 export default function ProductsTab() {
   const { t } = useI18n();
@@ -13,10 +14,12 @@ export default function ProductsTab() {
   const [isLoading, setIsLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState<string>('All');
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebouncedValue(search, 300);
   const [showCreateProduct, setShowCreateProduct] = useState(false);
   const [elementsModal, setElementsModal] = useState<{ productId: string; productName: string } | null>(null);
   const [editProductModal, setEditProductModal] = useState<ProductResponse | null>(null);
   const [cloneProductModal, setCloneProductModal] = useState<ProductResponse | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const categories = useMemo(() => {
     const cats = new Set(products.map(p => p.category));
@@ -28,15 +31,15 @@ export default function ProductsTab() {
     if (activeCategory !== 'All') {
       filtered = filtered.filter(p => p.category === activeCategory);
     }
-    if (search.trim()) {
-      const q = search.trim().toLowerCase();
+    if (debouncedSearch.trim()) {
+      const q = debouncedSearch.trim().toLowerCase();
       filtered = filtered.filter(p =>
         p.serialNumber.toLowerCase().includes(q) ||
         p.category.toLowerCase().includes(q)
       );
     }
     return filtered;
-  }, [products, activeCategory, search]);
+  }, [products, activeCategory, debouncedSearch]);
 
   useEffect(() => {
     loadProducts();
@@ -66,7 +69,8 @@ export default function ProductsTab() {
   }
 
   async function handleDeleteProduct(id: string) {
-    if (!window.electron) return;
+    if (!window.electron || isProcessing) return;
+    setIsProcessing(true);
     try {
       const result = await window.electron.deleteProduct(id);
       if (result.success) {
@@ -76,6 +80,8 @@ export default function ProductsTab() {
       }
     } catch (err) {
       console.error('Failed to delete product:', err);
+    } finally {
+      setIsProcessing(false);
     }
   }
 
