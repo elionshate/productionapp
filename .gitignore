@@ -43,6 +43,10 @@ next-env.d.ts
 /app/generated/prisma
 
 code-signing.pfx
+
+# build artifacts
+/dist/
+
 # markdown files (except README.md and INSTALL.md which are docs)
 # @agent_logs.md and @agent_instructions.md are LOCAL-ONLY agent files — kept ignored so git pull never deletes them
 *.md
