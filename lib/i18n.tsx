@@ -110,6 +110,7 @@ type TranslationKeys = {
   'production.noOrdersHint': string;
   'production.noData': string;
   'production.need': string;
+  'production.inStock': string;
   'production.remaining': string;
   'production.weight': string;
   'production.totalWeight': string;
@@ -284,6 +285,7 @@ const translations: Record<Language, TranslationKeys> = {
     'production.noOrdersHint': 'Set an order\'s status to "In Production" from the Orders tab to see it here.',
     'production.noData': 'No production data',
     'production.need': 'Need',
+    'production.inStock': 'In Stock',
     'production.remaining': 'Rem',
     'production.weight': 'Weight',
     'production.totalWeight': 'Total weight',
@@ -447,6 +449,7 @@ const translations: Record<Language, TranslationKeys> = {
     'production.noOrdersHint': 'Vendos statusin e porosisë në "Në Prodhim" nga skeda e Porosive.',
     'production.noData': 'Nuk ka të dhëna prodhimi',
     'production.need': 'Nevojitet',
+    'production.inStock': 'Në Stok',
     'production.remaining': 'Mbetur',
     'production.weight': 'Pesha',
     'production.totalWeight': 'Pesha gjithsej',
@@ -610,6 +613,7 @@ const translations: Record<Language, TranslationKeys> = {
     'production.noOrdersHint': 'Поставете го статусот на нарачката на "Во Производство" од табот Нарачки.',
     'production.noData': 'Нема податоци за производство',
     'production.need': 'Потребно',
+    'production.inStock': 'На Залиха',
     'production.remaining': 'Преостанато',
     'production.weight': 'Тежина',
     'production.totalWeight': 'Вкупна тежина',

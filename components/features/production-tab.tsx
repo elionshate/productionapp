@@ -163,13 +163,30 @@ export default function ProductionTab() {
         printHtml += `</div>`;
       }
     } else {
-      const aggregated = new Map<string, { elementName: string; elementLabel: string; color: string; totalNeeded: number; remaining: number }>();
+      // For aggregated totals, we need to track inventory separately since it's shared
+      const aggregated = new Map<string, { elementName: string; elementLabel: string; color: string; totalNeeded: number; inventoryAvailable: number; remaining: number }>();
       for (const order of productionOrders) {
         for (const el of order.elements) {
           const key = `${el.elementName}|${el.color}|${el.elementLabel ?? ''}`;
           const existing = aggregated.get(key);
-          if (existing) { existing.totalNeeded += el.totalNeeded; existing.remaining += el.remaining; }
-          else aggregated.set(key, { elementName: el.elementName, elementLabel: el.elementLabel ?? '', color: el.color, totalNeeded: el.totalNeeded, remaining: el.remaining });
+          if (existing) { 
+            existing.totalNeeded += el.totalNeeded; 
+            // Inventory is shared, keep the same value (it's identical across orders)
+            existing.inventoryAvailable = el.inventoryAvailable ?? 0;
+            // Recalculate remaining: total aggregated need - shared inventory
+            existing.remaining = Math.max(0, existing.totalNeeded - existing.inventoryAvailable);
+          }
+          else {
+            const invAvail = el.inventoryAvailable ?? 0;
+            aggregated.set(key, { 
+              elementName: el.elementName, 
+              elementLabel: el.elementLabel ?? '', 
+              color: el.color, 
+              totalNeeded: el.totalNeeded, 
+              inventoryAvailable: invAvail,
+              remaining: Math.max(0, el.totalNeeded - invAvail)
+            });
+          }
         }
       }
       const allItems = Array.from(aggregated.values());
@@ -306,22 +323,25 @@ export default function ProductionTab() {
 // ── Aggregated Totals (right panel) ─────────────────────────
 
 function AggregatedTotals({ productionOrders }: { productionOrders: ProductionOrderData[] }) {
-  const aggregated = new Map<string, { elementName: string; elementLabel: string; color: string; color2: string | null; isDualColor: boolean; totalNeeded: number; totalProduced: number; remaining: number; totalWeightGrams: number }>();
+  const aggregated = new Map<string, { elementName: string; elementLabel: string; color: string; color2: string | null; isDualColor: boolean; totalNeeded: number; inventoryAvailable: number; remaining: number; totalWeightGrams: number }>();
   for (const order of productionOrders) {
     for (const el of order.elements) {
       const key = `${el.elementName}|${el.color}|${el.color2 ?? ''}|${el.elementLabel ?? ''}`;
       const existing = aggregated.get(key);
       if (existing) {
         existing.totalNeeded += el.totalNeeded;
-        existing.totalProduced += el.totalProduced;
-        existing.remaining += el.remaining;
+        // Inventory is shared across orders, use the value from any order (they're the same)
+        existing.inventoryAvailable = el.inventoryAvailable ?? 0;
+        // Recalculate remaining based on aggregated need vs inventory
+        existing.remaining = Math.max(0, existing.totalNeeded - existing.inventoryAvailable);
         existing.totalWeightGrams += el.totalWeightGrams;
       } else {
+        const inventoryAvailable = el.inventoryAvailable ?? 0;
         aggregated.set(key, {
           elementName: el.elementName, elementLabel: el.elementLabel ?? '', color: el.color,
           color2: el.color2, isDualColor: el.isDualColor,
-          totalNeeded: el.totalNeeded, totalProduced: el.totalProduced,
-          remaining: el.remaining, totalWeightGrams: el.totalWeightGrams,
+          totalNeeded: el.totalNeeded, inventoryAvailable: inventoryAvailable,
+          remaining: Math.max(0, el.totalNeeded - inventoryAvailable), totalWeightGrams: el.totalWeightGrams,
         });
       }
     }
@@ -332,7 +352,7 @@ function AggregatedTotals({ productionOrders }: { productionOrders: ProductionOr
     <div className="space-y-2">
       {allItems.map((item, idx) => {
         const isDone = item.remaining <= 0;
-        const progressPercent = item.totalNeeded > 0 ? Math.min(100, (item.totalProduced / item.totalNeeded) * 100) : 0;
+        const progressPercent = item.totalNeeded > 0 ? Math.min(100, (item.inventoryAvailable / item.totalNeeded) * 100) : 0;
         return (
           <div key={idx} className={`rounded-lg border px-3 py-2.5 ${isDone ? 'border-green-200 bg-green-50/50 dark:border-green-900 dark:bg-green-950/20' : 'border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800'}`}>
             <div className="flex items-center gap-2 mb-1">
@@ -352,6 +372,7 @@ function AggregatedTotals({ productionOrders }: { productionOrders: ProductionOr
             </div>
             <div className="flex items-center gap-3 text-xs text-zinc-600 dark:text-zinc-300">
               <span>Need: <span className="font-bold text-zinc-900 dark:text-zinc-100">{item.totalNeeded}</span></span>
+              <span>Stock: <span className="font-bold text-blue-600 dark:text-blue-400">{item.inventoryAvailable}</span></span>
               <span>Rem: <span className={`font-bold ${isDone ? 'text-green-600 dark:text-green-400' : 'text-amber-600 dark:text-amber-400'}`}>{Math.max(0, item.remaining)}</span></span>
             </div>
             <div className="mt-1.5 h-1.5 w-full rounded-full bg-zinc-200 dark:bg-zinc-700 overflow-hidden">

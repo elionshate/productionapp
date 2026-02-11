@@ -23,6 +23,13 @@ export class ProductionService {
       orderBy: { createdAt: 'asc' },
     });
 
+    // Fetch all inventory to factor into remaining calculations
+    const inventoryRecords = await this.prisma.inventory.findMany();
+    const inventoryMap = new Map<string, number>();
+    for (const inv of inventoryRecords) {
+      inventoryMap.set(inv.elementId, inv.totalAmount);
+    }
+
     // Retroactive fix: auto-generate manufacturing orders for orders missing them
     for (const order of orders) {
       if (order.manufacturingOrders.length === 0 && order.orderItems.length > 0) {
@@ -44,18 +51,21 @@ export class ProductionService {
         color: string; color2: string | null; isDualColor: boolean;
         material: string; imageUrl: string | null; weightPerUnit: number;
         totalNeeded: number; totalProduced: number; remaining: number;
-        totalWeightGrams: number;
+        inventoryAvailable: number; totalWeightGrams: number;
       }>();
 
       for (const mfgOrder of order.manufacturingOrders) {
         for (const req of mfgOrder.requirements) {
+          const inventoryAvailable = inventoryMap.get(req.elementId) ?? 0;
           const existing = elementMap.get(req.elementId);
           if (existing) {
             existing.totalNeeded += req.quantityNeeded;
             existing.totalProduced += req.quantityProduced;
-            existing.remaining = existing.totalNeeded - existing.totalProduced;
+            // Remaining = what still needs to be produced (factoring in available inventory)
+            existing.remaining = Math.max(0, existing.totalNeeded - inventoryAvailable);
             existing.totalWeightGrams += Number(req.totalWeightGrams);
           } else {
+            const totalNeeded = req.quantityNeeded;
             elementMap.set(req.elementId, {
               elementId: req.elementId,
               elementName: req.element?.uniqueName ?? 'Unknown',
@@ -66,9 +76,11 @@ export class ProductionService {
               material: req.element?.material ?? '',
               imageUrl: req.element?.imageUrl ?? null,
               weightPerUnit: Number(req.element?.weightGrams ?? 0),
-              totalNeeded: req.quantityNeeded,
+              totalNeeded: totalNeeded,
               totalProduced: req.quantityProduced,
-              remaining: req.quantityNeeded - req.quantityProduced,
+              // Remaining = what still needs to be produced (factoring in available inventory)
+              remaining: Math.max(0, totalNeeded - inventoryAvailable),
+              inventoryAvailable: inventoryAvailable,
               totalWeightGrams: Number(req.totalWeightGrams),
             });
           }
@@ -159,14 +171,50 @@ export class ProductionService {
       where: { manufacturingOrder: { orderId }, elementId },
     });
     const totalNeeded = updatedReqs.reduce((sum, r) => sum + r.quantityNeeded, 0);
-    const totalProduced = updatedReqs.reduce((sum, r) => sum + r.quantityProduced, 0);
-    const remaining = totalNeeded - totalProduced;
+    
+    // Get current inventory for this element to calculate real remaining
+    const inventory = await this.prisma.inventory.findUnique({
+      where: { elementId },
+    });
+    const inventoryAvailable = inventory?.totalAmount ?? 0;
+    const remaining = Math.max(0, totalNeeded - inventoryAvailable);
 
     const allReqs = await this.prisma.materialRequirement.findMany({
       where: { manufacturingOrder: { orderId } },
     });
-    const orderComplete = allReqs.every((r) => r.quantityProduced >= r.quantityNeeded);
+    
+    // Check if all elements for this order have enough inventory
+    const orderComplete = await this.checkOrderComplete(orderId);
 
     return { remaining, orderComplete };
+  }
+
+  /**
+   * Check if an order is complete by verifying all elements have sufficient inventory
+   */
+  private async checkOrderComplete(orderId: string): Promise<boolean> {
+    const allReqs = await this.prisma.materialRequirement.findMany({
+      where: { manufacturingOrder: { orderId } },
+    });
+
+    // Group requirements by element
+    const elementNeeds = new Map<string, number>();
+    for (const req of allReqs) {
+      const current = elementNeeds.get(req.elementId) ?? 0;
+      elementNeeds.set(req.elementId, current + req.quantityNeeded);
+    }
+
+    // Check inventory for each element
+    for (const [elementId, needed] of elementNeeds) {
+      const inventory = await this.prisma.inventory.findUnique({
+        where: { elementId },
+      });
+      const available = inventory?.totalAmount ?? 0;
+      if (available < needed) {
+        return false;
+      }
+    }
+
+    return true;
   }
 }

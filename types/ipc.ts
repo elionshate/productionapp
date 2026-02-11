@@ -166,6 +166,7 @@ export interface ProductionElementGroup {
   totalNeeded: number;
   totalProduced: number;
   remaining: number;
+  inventoryAvailable: number;
   totalWeightGrams: number;
 }
 

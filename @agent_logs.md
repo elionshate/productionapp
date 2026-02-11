@@ -1,5 +1,106 @@
 # Agent Implementation Log — Stock Tab Manual Control (Phase 15)
 
+## Release: v0.2.9 — 2026-02-11
+- **Action**: Production tab now shows remaining based on element inventory
+- **Commit**: feat(production): calculate remaining from inventory for real-time production status
+- **Tag**: v0.2.9
+
+**Date**: 2026-02-11  
+**Purpose**: Production tab remaining values now factor in element inventory for accurate production tracking
+
+---
+
+## 🎯 Phase 17 Implementation Summary — Production Inventory-Based Remaining
+
+### Problem
+The Production tab's "remaining" values only tracked `quantityProduced` in manufacturing requirements, not considering the actual element inventory. This led to incorrect remaining counts when:
+1. Elements were produced but not yet assigned to orders
+2. Inventory existed from previous production runs
+3. Multiple orders shared the same element inventory
+
+### Solution Applied
+
+#### Backend Changes
+
+**File**: `apps/api/src/production/production.service.ts`
+
+1. **Fetch inventory in `getInProduction()`**:
+```typescript
+const inventoryRecords = await this.prisma.inventory.findMany();
+const inventoryMap = new Map<string, number>();
+for (const inv of inventoryRecords) {
+  inventoryMap.set(inv.elementId, inv.totalAmount);
+}
+```
+
+2. **Calculate remaining based on inventory**:
+```typescript
+const inventoryAvailable = inventoryMap.get(req.elementId) ?? 0;
+remaining: Math.max(0, totalNeeded - inventoryAvailable),
+```
+
+3. **Updated `recordProduction()` return value** to use inventory-based remaining
+
+4. **Added `checkOrderComplete()` helper** that verifies all elements have sufficient inventory
+
+#### Type Updates
+
+**Files**: `types/ipc.ts`, `packages/shared/src/dto/production.dto.ts`
+
+Added `inventoryAvailable: number` field to `ProductionElementGroup` interface
+
+#### Frontend Changes
+
+**File**: `components/production-order-card.tsx`
+
+1. Progress bar now uses `inventoryAvailable / totalNeeded` for percentage
+2. Added "In Stock" display showing current element inventory
+3. State syncs with `inventoryAvailable` prop changes
+
+**File**: `components/features/production-tab.tsx`
+
+1. **Print function** now properly calculates aggregated remaining:
+   - Individual orders: remaining per-order based on inventory
+   - Aggregated totals: recalculates `totalNeeded - inventoryAvailable` for shared inventory
+
+2. **AggregatedTotals component** updated to use inventory-based progress
+
+**File**: `lib/i18n.tsx`
+
+Added `production.inStock` translation key (EN: "In Stock", SQ: "Në Stok", MK: "На Залиха")
+
+### New Data Flow
+
+```
+1. User produces elements → Inventory increases
+2. Production tab fetches orders + inventory
+3. Remaining = totalNeeded - inventoryAvailable (not quantityProduced)
+4. Progress bar = inventoryAvailable / totalNeeded × 100%
+5. Order complete when all elements have inventory >= needed
+```
+
+### UI Changes
+
+- **Need**: Total elements required for order (unchanged)
+- **In Stock**: Current element inventory (NEW - blue text)
+- **Remaining**: Elements still needed = Need - In Stock (amber/green)
+- **Progress bar**: Fills based on inventory vs need (visual indicator)
+
+### Files Modified (Phase 17)
+
+| File | Change |
+|------|--------|
+| `apps/api/src/production/production.service.ts` | Inventory-based remaining calculation |
+| `types/ipc.ts` | Added `inventoryAvailable` to `ProductionElementGroup` |
+| `packages/shared/src/dto/production.dto.ts` | Added `inventoryAvailable` to interface |
+| `components/production-order-card.tsx` | Inventory display + progress bar fix |
+| `components/features/production-tab.tsx` | Print function + aggregated totals fix |
+| `lib/i18n.tsx` | Added `production.inStock` translation |
+
+**Build Status**: ✅ Compiled successfully, all changes verified
+
+---
+
 ## Release: v0.2.8 — 2026-02-11
 - **Action**: Fixed Production tab progress bar state synchronization
 - **Commit**: fix(production): sync progress bar with prop changes for real-time updates
@@ -205,8 +306,9 @@ useEffect(() => {
 - **Phase 13**: ✅ Previous gitignore fixes 
 - **Phase 14**: ✅ Performance hardening, debounce, guards, internationalization
 - **Phase 15**: ✅ Stock manual control implementation
-- **Phase 16**: ✅ **CURRENT** - Production progress bar state sync fix
-- **Phase 17**: 🔮 Future - TBD based on user testing feedback
+- **Phase 16**: ✅ Production progress bar state sync fix
+- **Phase 17**: ✅ **CURRENT** - Production inventory-based remaining calculation
+- **Phase 18**: 🔮 Future - TBD based on user testing feedback
 
 ---
 

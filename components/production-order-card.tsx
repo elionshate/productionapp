@@ -126,17 +126,18 @@ function ProductionElementRow({ element, orderId, onRecordProduction }: Producti
   const [inputValue, setInputValue] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [remaining, setRemaining] = useState(element.remaining);
-  const [totalProduced, setTotalProduced] = useState(element.totalProduced);
+  const [inventoryAvailable, setInventoryAvailable] = useState(element.inventoryAvailable ?? 0);
   const [error, setError] = useState('');
 
   // Sync local state with prop changes (e.g., when stock is applied from Stock tab)
   useEffect(() => {
     setRemaining(element.remaining);
-    setTotalProduced(element.totalProduced);
-  }, [element.remaining, element.totalProduced]);
+    setInventoryAvailable(element.inventoryAvailable ?? 0);
+  }, [element.remaining, element.inventoryAvailable]);
 
+  // Progress based on inventory vs total needed
   const progressPercent = element.totalNeeded > 0
-    ? Math.min(100, (totalProduced / element.totalNeeded) * 100)
+    ? Math.min(100, (inventoryAvailable / element.totalNeeded) * 100)
     : 0;
 
   const isDone = remaining <= 0;
@@ -155,7 +156,8 @@ function ProductionElementRow({ element, orderId, onRecordProduction }: Producti
       const newRemaining = await onRecordProduction(orderId, element.elementId, amount);
       if (newRemaining !== null) {
         setRemaining(newRemaining);
-        setTotalProduced(element.totalNeeded - newRemaining);
+        // Update inventory available: new inventory = totalNeeded - newRemaining
+        setInventoryAvailable(element.totalNeeded - newRemaining);
         setInputValue('');
       } else {
         setError('Failed to record');
@@ -223,6 +225,7 @@ function ProductionElementRow({ element, orderId, onRecordProduction }: Producti
         </div>
         <div className="flex items-center gap-4 mt-1.5 text-sm text-zinc-600 dark:text-zinc-300">
           <span>{t('production.need')}: <span className="font-bold text-lg text-zinc-900 dark:text-zinc-100">{element.totalNeeded}</span></span>
+          <span>{t('production.inStock')}: <span className="font-bold text-lg text-blue-600 dark:text-blue-400">{inventoryAvailable}</span></span>
           <span>{t('production.remaining')}: <span className={`font-bold text-lg ${isDone ? 'text-green-600 dark:text-green-400' : 'text-amber-600 dark:text-amber-400'}`}>{Math.max(0, remaining)}</span></span>
           <span>{t('production.weight')}: <span className="font-semibold">{formatWeight(remainingWeight)}</span></span>
         </div>
