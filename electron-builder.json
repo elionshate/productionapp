@@ -1,6 +1,7 @@
 {
   "appId": "com.productionapp.app",
   "productName": "Production Management",
+  "publisherName": "Production Management",
   "directories": {
     "output": "dist/installer",
     "buildResources": "public"
@@ -9,7 +10,8 @@
     {
       "provider": "github",
       "owner": "elionshate",
-      "repo": "productionapp"
+      "repo": "productionapp",
+      "releaseType": "release"
     }
   ],
   "files": [
@@ -42,11 +44,16 @@
       {
         "target": "nsis",
         "arch": ["x64"]
+      },
+      {
+        "target": "nsis-web",
+        "arch": ["x64"]
       }
     ],
     "icon": "public/icon.ico",
-    "artifactName": "${productName}-Setup-${version}.${ext}",
-    "forceCodeSigning": false
+    "artifactName": "${productName}-${version}.${ext}",
+    "forceCodeSigning": false,
+    "certificateFile": "code-signing.pfx"
   },
   "nsis": {
     "oneClick": false,
