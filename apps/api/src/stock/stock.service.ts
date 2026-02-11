@@ -95,7 +95,13 @@ export class StockService {
       throw new BadRequestException(`Not enough stock. Available: ${stock.stockBoxedAmount}`);
     }
 
-    // Apply in a transaction
+    // Fetch product with its elements so we can recalculate requirements
+    const product = await this.prisma.product.findUnique({
+      where: { id: productId },
+      include: { productElements: { include: { element: true } } },
+    });
+
+    // Apply in a transaction: update stock + recalculate manufacturing requirements
     await this.prisma.$transaction(async (tx) => {
       await tx.orderItem.update({
         where: { id: orderItem.id },
@@ -105,6 +111,50 @@ export class StockService {
         where: { productId },
         data: { stockBoxedAmount: { decrement: boxes } },
       });
+
+      // Recalculate manufacturing order requirements to reflect stock applied
+      const mfgOrder = await tx.manufacturingOrder.findFirst({
+        where: { orderId, productId },
+        include: { requirements: true },
+      });
+
+      if (mfgOrder && product) {
+        const newBoxesAssembled = orderItem.boxesAssembled + boxes;
+        const boxesStillNeeded = Math.max(0, orderItem.boxesNeeded - newBoxesAssembled);
+        const newTotalUnits = boxesStillNeeded * (product.unitsPerBox ?? 1);
+
+        // Update the manufacturing order quantity
+        await tx.manufacturingOrder.update({
+          where: { id: mfgOrder.id },
+          data: { quantityToMake: newTotalUnits },
+        });
+
+        // Recalculate each material requirement
+        for (const pe of product.productElements) {
+          const rawQty = pe.quantityNeeded * newTotalUnits;
+          const quantityNeeded = pe.element?.isDualColor ? Math.ceil(rawQty / 2) : rawQty;
+          const totalWeightGrams = Number(pe.element?.weightGrams ?? 0) * quantityNeeded;
+
+          await tx.materialRequirement.upsert({
+            where: {
+              manufacturingOrderId_elementId: {
+                manufacturingOrderId: mfgOrder.id,
+                elementId: pe.elementId,
+              },
+            },
+            create: {
+              manufacturingOrderId: mfgOrder.id,
+              elementId: pe.elementId,
+              quantityNeeded,
+              totalWeightGrams,
+            },
+            update: {
+              quantityNeeded,
+              totalWeightGrams,
+            },
+          });
+        }
+      }
     });
 
     return serialize({
