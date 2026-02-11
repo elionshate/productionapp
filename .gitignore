@@ -48,10 +48,14 @@ code-signing.pfx
 /dist/
 
 # markdown files (except README.md and INSTALL.md which are docs)
-# @agent_logs.md and @agent_instructions.md are LOCAL-ONLY agent files — kept ignored so git pull never deletes them
 *.md
 !README.md
 !INSTALL.md
+
+# Agent-specific files — LOCAL-ONLY, should never be committed
+# Future agents: DO NOT commit or push these files
+@agent_logs.md
+@agent_instructions.md
 
 # Database files
 *.db
