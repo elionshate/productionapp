@@ -5,6 +5,7 @@ import type { InventoryResponse, AssemblyOrderData, ExcessAssemblyData, ElementR
 import { colorNameToHex } from '../../lib/utils';
 import { printAssemblySheet } from '../../lib/print-assembly';
 import { useI18n } from '../../lib/i18n';
+import { toast } from '../ui/toast';
 
 export default function InventoryTab() {
   const [inventory, setInventory] = useState<InventoryResponse[]>([]);
@@ -19,15 +20,12 @@ export default function InventoryTab() {
   const { t } = useI18n();
 
   useEffect(() => {
-    loadInventory();
-    loadAssemblyOrders();
-    loadExcess();
-    loadElements();
+    Promise.all([loadInventory(true), loadAssemblyOrders(true), loadExcess(true), loadElements()]);
   }, []);
 
-  async function loadInventory() {
+  async function loadInventory(initial = false) {
     if (!window.electron) { setIsLoadingInventory(false); return; }
-    setIsLoadingInventory(true);
+    if (initial) setIsLoadingInventory(true);
     try {
       const result = await window.electron.getInventory();
       if (result.success) {
@@ -36,7 +34,7 @@ export default function InventoryTab() {
     } catch (err) {
       console.error('Failed to load inventory:', err);
     } finally {
-      setIsLoadingInventory(false);
+      if (initial) setIsLoadingInventory(false);
     }
   }
 
@@ -48,7 +46,7 @@ export default function InventoryTab() {
       if (result.success) {
         setInventory(prev => prev.filter(item => item.id !== id));
       } else {
-        alert(result.error || 'Failed to delete inventory item');
+        toast(result.error || 'Failed to delete inventory item');
       }
     } catch (err) {
       console.error('Failed to delete inventory:', err);
@@ -57,29 +55,29 @@ export default function InventoryTab() {
     }
   }
 
-  async function loadAssemblyOrders() {
+  async function loadAssemblyOrders(initial = false) {
     if (!window.electron) { setIsLoadingAssembly(false); return; }
-    setIsLoadingAssembly(true);
+    if (initial) setIsLoadingAssembly(true);
     try {
       const result = await window.electron.getAssemblyOrders();
       if (result.success) setAssemblyOrders(result.data);
     } catch (err) {
       console.error('Failed to load assembly orders:', err);
     } finally {
-      setIsLoadingAssembly(false);
+      if (initial) setIsLoadingAssembly(false);
     }
   }
 
-  async function loadExcess() {
+  async function loadExcess(initial = false) {
     if (!window.electron) { setIsLoadingExcess(false); return; }
-    setIsLoadingExcess(true);
+    if (initial) setIsLoadingExcess(true);
     try {
       const result = await window.electron.getExcessAssembly();
       if (result.success) setExcessItems(result.data);
     } catch (err) {
       console.error('Failed to load excess assembly:', err);
     } finally {
-      setIsLoadingExcess(false);
+      if (initial) setIsLoadingExcess(false);
     }
   }
 
@@ -117,19 +115,8 @@ export default function InventoryTab() {
     try {
       const result = await window.electron.recordAssembly({ orderId, productId, boxesAssembled: boxes });
       if (result.success) {
-        setAssemblyOrders(prev => prev.map(order => {
-          if (order.orderId !== orderId) return order;
-          return {
-            ...order,
-            products: order.products.map(p => {
-              if (p.productId !== productId) return p;
-              return { ...p, boxesAssembled: result.data.boxesAssembled, remaining: result.data.remaining };
-            }),
-          };
-        }));
-        loadInventory();
-        loadExcess();
-        loadAssemblyOrders();
+        // Batch all refetches into a single await to minimize re-renders
+        await Promise.all([loadInventory(), loadExcess(), loadAssemblyOrders()]);
         return true;
       }
       return result.error || 'Failed to record assembly';
@@ -144,8 +131,7 @@ export default function InventoryTab() {
     try {
       const result = await window.electron.recordExcessAssembly({ productId, boxes });
       if (result.success) {
-        loadInventory();
-        loadExcess();
+        await Promise.all([loadInventory(), loadExcess()]);
         return true;
       }
       return result.error || 'Failed to record excess assembly';
@@ -156,9 +142,7 @@ export default function InventoryTab() {
   }
 
   function refreshAll() {
-    loadInventory();
-    loadAssemblyOrders();
-    loadExcess();
+    Promise.all([loadInventory(), loadAssemblyOrders(), loadExcess()]);
   }
 
   return (
@@ -180,7 +164,7 @@ export default function InventoryTab() {
               </svg>
               {t('inventory.addManual')}
             </button>
-            <button onClick={loadInventory} className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700">{t('common.refresh')}</button>
+            <button onClick={() => loadInventory()} className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700">{t('common.refresh')}</button>
           </div>
         </div>
 
@@ -228,11 +212,7 @@ export default function InventoryTab() {
                   <p className="text-xs text-zinc-400">{t('common.inStock')}</p>
                 </div>
                 <button
-                  onClick={() => {
-                    if (confirm(`${t('inventory.deleteConfirm')} ${item.element?.uniqueName ?? 'this element'}?`)) {
-                      handleDeleteInventory(item.id);
-                    }
-                  }}
+                  onClick={() => handleDeleteInventory(item.id)}
                   className="flex-shrink-0 rounded-lg p-1.5 text-zinc-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30 dark:hover:text-red-400 transition-colors"
                   title="Delete inventory (testing)"
                 >
@@ -288,7 +268,7 @@ export default function InventoryTab() {
               if (result === true) {
                 setShowAddInventory(false);
               } else {
-                alert(result);
+                toast(result);
               }
             });
           }}

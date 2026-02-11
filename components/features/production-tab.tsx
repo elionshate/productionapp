@@ -13,19 +13,19 @@ export default function ProductionTab() {
   const { t } = useI18n();
 
   useEffect(() => {
-    loadProductionOrders();
+    loadProductionOrders(true);
   }, []);
 
-  async function loadProductionOrders() {
+  async function loadProductionOrders(initial = false) {
     if (!window.electron) { setIsLoadingProduction(false); return; }
-    setIsLoadingProduction(true);
+    if (initial) setIsLoadingProduction(true);
     try {
       const result = await window.electron.getProductionOrders();
       if (result.success) setProductionOrders(result.data);
     } catch (err) {
       console.error('Failed to load production orders:', err);
     } finally {
-      setIsLoadingProduction(false);
+      if (initial) setIsLoadingProduction(false);
     }
   }
 
@@ -242,7 +242,7 @@ export default function ProductionTab() {
             {productionOrders.length > 0 && (
               <button onClick={() => handlePrintProduction('orders')} className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700">{t('common.print')}</button>
             )}
-            <button onClick={loadProductionOrders} className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700">{t('common.refresh')}</button>
+            <button onClick={() => loadProductionOrders()} className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700">{t('common.refresh')}</button>
           </div>
         </div>
 

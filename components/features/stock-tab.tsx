@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, memo } from 'react';
 import type { StockOrderData, ProductStockResponse } from '../../types/ipc';
 import { useI18n } from '../../lib/i18n';
+import { toast } from '../ui/toast';
 
 export default function StockTab() {
   const [stockOrders, setStockOrders] = useState<StockOrderData[]>([]);
@@ -12,35 +13,35 @@ export default function StockTab() {
   const [isLoadingExcess, setIsLoadingExcess] = useState(true);
   const { t } = useI18n();
 
-  const loadStockOrders = useCallback(async () => {
+  const loadStockOrders = useCallback(async (initial = false) => {
     if (!window.electron) { setIsLoadingStock(false); return; }
-    setIsLoadingStock(true);
+    if (initial) setIsLoadingStock(true);
     try {
       const result = await window.electron.getStockOrders();
       if (result.success) setStockOrders(result.data);
     } catch (err) {
       console.error('Failed to load stock orders:', err);
     } finally {
-      setIsLoadingStock(false);
+      if (initial) setIsLoadingStock(false);
     }
   }, []);
 
-  const loadExcessStock = useCallback(async () => {
+  const loadExcessStock = useCallback(async (initial = false) => {
     if (!window.electron) { setIsLoadingExcess(false); return; }
-    setIsLoadingExcess(true);
+    if (initial) setIsLoadingExcess(true);
     try {
       const result = await window.electron.getProductStock();
       if (result.success) setExcessStock(result.data.filter(s => s.stockBoxedAmount > 0));
     } catch (err) {
       console.error('Failed to load excess stock:', err);
     } finally {
-      setIsLoadingExcess(false);
+      if (initial) setIsLoadingExcess(false);
     }
   }, []);
 
   useEffect(() => {
-    loadStockOrders();
-    loadExcessStock();
+    loadStockOrders(true);
+    loadExcessStock(true);
   }, [loadStockOrders, loadExcessStock]);
 
   // Build a map of productId → available excess stock for quick lookup
@@ -57,11 +58,11 @@ export default function StockTab() {
       if (result.success) {
         setStockOrders(prev => prev.filter(o => o.orderId !== orderId));
       } else {
-        alert(result.error || 'Failed to ship order');
+        toast(result.error || 'Failed to ship order');
       }
     } catch (err) {
       console.error('Failed to ship order:', err);
-      alert('Failed to ship order');
+      toast('Failed to ship order');
     } finally {
       setShippingId(null);
     }
@@ -75,11 +76,11 @@ export default function StockTab() {
         // Refresh both lists
         await Promise.all([loadStockOrders(), loadExcessStock()]);
       } else {
-        alert(result.error || t('stock.applyFailed'));
+        toast(result.error || t('stock.applyFailed'));
       }
     } catch (err) {
       console.error('Failed to apply stock:', err);
-      alert(t('stock.applyFailed'));
+      toast(t('stock.applyFailed'));
     }
   }
 

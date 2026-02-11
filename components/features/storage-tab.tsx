@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import type { RawMaterialResponse } from '../../types/ipc';
 import { useI18n } from '../../lib/i18n';
 import { useDebouncedValue } from '../../hooks/use-debounce';
+import { toast } from '../ui/toast';
 
 export default function StorageTab() {
   const { t } = useI18n();
@@ -23,19 +24,19 @@ export default function StorageTab() {
   }, [rawMaterials, debouncedSearch]);
 
   useEffect(() => {
-    loadRawMaterials();
+    loadRawMaterials(true);
   }, []);
 
-  async function loadRawMaterials() {
+  async function loadRawMaterials(initial = false) {
     if (!window.electron) { setIsLoadingRawMaterials(false); return; }
-    setIsLoadingRawMaterials(true);
+    if (initial) setIsLoadingRawMaterials(true);
     try {
       const result = await window.electron.getRawMaterials();
       if (result.success) setRawMaterials(result.data);
     } catch (err) {
       console.error('Failed to load raw materials:', err);
     } finally {
-      setIsLoadingRawMaterials(false);
+      if (initial) setIsLoadingRawMaterials(false);
     }
   }
 
@@ -47,10 +48,10 @@ export default function StorageTab() {
       if (result.success) {
         setRawMaterials(prev => prev.filter(m => m.id !== id));
       } else {
-        alert(result.error || 'Failed to delete raw material');
+        toast(result.error || 'Failed to delete raw material');
       }
     } catch {
-      alert('Failed to delete raw material');
+      toast('Failed to delete raw material');
     } finally {
       setIsProcessing(false);
     }
@@ -185,8 +186,8 @@ function CreateRawMaterialModal({ onClose, onCreated }: { onClose: () => void; o
     try {
       const result = await window.electron.createRawMaterial({ name: name.trim(), unit: unit.trim() || 'g' });
       if (result.success) onCreated();
-      else alert(result.error || 'Failed to create raw material');
-    } catch { alert('Failed to create raw material'); }
+      else toast(result.error || 'Failed to create raw material');
+    } catch { toast('Failed to create raw material'); }
     finally { setIsSubmitting(false); }
   }
 
@@ -238,8 +239,8 @@ function AdjustStockModal({ material, onClose, onAdjusted }: { material: RawMate
     try {
       const result = await window.electron.adjustRawMaterialStock({ rawMaterialId: material.id, changeAmount, reason: reason.trim() || undefined });
       if (result.success) onAdjusted();
-      else alert(result.error || 'Failed to adjust stock');
-    } catch { alert('Failed to adjust stock'); }
+      else toast(result.error || 'Failed to adjust stock');
+    } catch { toast('Failed to adjust stock'); }
     finally { setIsSubmitting(false); }
   }
 
@@ -297,8 +298,8 @@ function EditRawMaterialModal({ material, onClose, onSaved }: { material: RawMat
     try {
       const result = await window.electron.updateRawMaterial(material.id, { name: name.trim(), unit: unit.trim() });
       if (result.success) onSaved();
-      else alert(result.error || 'Failed to update raw material');
-    } catch { alert('Failed to update raw material'); }
+      else toast(result.error || 'Failed to update raw material');
+    } catch { toast('Failed to update raw material'); }
     finally { setIsSubmitting(false); }
   }
 

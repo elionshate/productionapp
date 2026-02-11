@@ -8,6 +8,7 @@ import OrderDetailModal from '../order-detail-modal';
 import type { OrderResponse } from '../../types/ipc';
 import { useI18n } from '../../lib/i18n';
 import { useDebouncedValue } from '../../hooks/use-debounce';
+import { toast } from '../ui/toast';
 
 export default function OrdersTab() {
   const [orders, setOrders] = useState<OrderResponse[]>([]);
@@ -38,19 +39,19 @@ export default function OrdersTab() {
   }, [orders, orderStatusFilter, debouncedSearch]);
 
   useEffect(() => {
-    loadOrders();
+    loadOrders(true);
   }, []);
 
-  async function loadOrders() {
+  async function loadOrders(initial = false) {
     if (!window.electron) { setIsLoadingOrders(false); return; }
-    setIsLoadingOrders(true);
+    if (initial) setIsLoadingOrders(true);
     try {
       const result = await window.electron.getOrders();
       if (result.success) setOrders(result.data);
     } catch (err) {
       console.error('Failed to load orders:', err);
     } finally {
-      setIsLoadingOrders(false);
+      if (initial) setIsLoadingOrders(false);
     }
   }
 
@@ -76,10 +77,10 @@ export default function OrdersTab() {
         const applied = items.filter(i => i.boxesAssembled && i.boxesAssembled > 0);
         if (applied.length > 0) {
           const details = applied.map(i => `${i.product?.serialNumber ?? 'Product'}: ${i.boxesAssembled} box${i.boxesAssembled !== 1 ? 'es' : ''} from stock`).join('\n');
-          alert(`Stock auto-applied:\n${details}`);
+          toast(`Stock auto-applied:\n${details}`);
         }
       } else {
-        alert(result.error || 'Cannot start production');
+        toast(result.error || 'Cannot start production');
         await loadOrders();
       }
     } catch (err) {
@@ -97,7 +98,7 @@ export default function OrdersTab() {
       if (result.success) {
         setOrders(prev => prev.map(o => o.id === id ? { ...o, status: 'shipped', shippedAt: new Date() } : o));
       } else {
-        alert(result.error || 'Cannot ship order');
+        toast(result.error || 'Cannot ship order');
       }
     } catch (err) {
       console.error('Failed to ship order:', err);
@@ -114,7 +115,7 @@ export default function OrdersTab() {
       if (result.success) {
         setOrders(prev => prev.filter(o => o.id !== id));
       } else {
-        alert(result.error || 'Failed to delete order');
+        toast(result.error || 'Failed to delete order');
         throw new Error(result.error);
       }
     } catch (err) {
@@ -254,6 +255,34 @@ export default function OrdersTab() {
   );
 }
 
+// ── Debounced Boxes Input ───────────────────────────────────
+
+function BoxesInput({ value, onUpdate, className }: { value: number; onUpdate: (val: number) => void; className?: string }) {
+  const [local, setLocal] = useState(String(value));
+  const debouncedLocal = useDebouncedValue(local, 400);
+
+  // Sync external value changes (e.g. after server response)
+  useEffect(() => { setLocal(String(value)); }, [value]);
+
+  // Fire API call when debounced value settles
+  useEffect(() => {
+    const n = parseInt(debouncedLocal, 10);
+    if (!isNaN(n) && n >= 1 && n !== value) {
+      onUpdate(n);
+    }
+  }, [debouncedLocal]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <input
+      type="number"
+      min={1}
+      value={local}
+      onChange={(e) => setLocal(e.target.value)}
+      className={className}
+    />
+  );
+}
+
 // ── Edit Order Modal ────────────────────────────────────────
 
 function EditOrderModal({
@@ -328,10 +357,10 @@ function EditOrderModal({
       if (result.success) {
         onSaved();
       } else {
-        alert(result.error || 'Failed to update order');
+        toast(result.error || 'Failed to update order');
       }
     } catch {
-      alert('Failed to update order');
+      toast('Failed to update order');
     } finally {
       setIsSubmitting(false);
     }
@@ -344,7 +373,7 @@ function EditOrderModal({
       if (result.success) {
         setOrderItems(result.data.orderItems ?? []);
       } else {
-        alert(result.error || 'Failed to remove item');
+        toast(result.error || 'Failed to remove item');
       }
     } catch (err) {
       console.error('Failed to remove item:', err);
@@ -358,7 +387,7 @@ function EditOrderModal({
       if (result.success) {
         setOrderItems(result.data.orderItems ?? []);
       } else {
-        alert(result.error || 'Failed to update item');
+        toast(result.error || 'Failed to update item');
       }
     } catch (err) {
       console.error('Failed to update item:', err);
@@ -469,16 +498,9 @@ function EditOrderModal({
                         {/* Boxes input */}
                         <div className="flex items-center gap-1.5">
                           <label className="text-xs text-zinc-500 dark:text-zinc-400 whitespace-nowrap">{t('orders.boxesNeeded')}:</label>
-                          <input
-                            type="number"
-                            min={1}
+                          <BoxesInput
                             value={item.boxesNeeded}
-                            onChange={(e) => {
-                              const val = parseInt(e.target.value, 10);
-                              if (!isNaN(val) && val >= 1) {
-                                handleUpdateBoxes(item.id, val);
-                              }
-                            }}
+                            onUpdate={(val) => handleUpdateBoxes(item.id, val)}
                             className="w-16 rounded-md border border-zinc-300 bg-white px-2 py-1 text-center text-sm text-zinc-900 outline-none focus:border-blue-500 dark:border-zinc-600 dark:bg-zinc-700 dark:text-zinc-100"
                           />
                         </div>

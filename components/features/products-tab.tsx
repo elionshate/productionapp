@@ -7,6 +7,7 @@ import ProductElementsModal from '../product-elements-modal';
 import type { ProductResponse, RawMaterialResponse } from '../../types/ipc';
 import { useI18n } from '../../lib/i18n';
 import { useDebouncedValue } from '../../hooks/use-debounce';
+import { toast } from '../ui/toast';
 
 export default function ProductsTab() {
   const { t } = useI18n();
@@ -42,19 +43,19 @@ export default function ProductsTab() {
   }, [products, activeCategory, debouncedSearch]);
 
   useEffect(() => {
-    loadProducts();
+    loadProducts(true);
   }, []);
 
-  async function loadProducts() {
+  async function loadProducts(initial = false) {
     if (!window.electron) { setIsLoading(false); return; }
-    setIsLoading(true);
+    if (initial) setIsLoading(true);
     try {
       const result = await window.electron.getProducts();
       if (result.success) setProducts(result.data);
     } catch (err) {
       console.error('Failed to load products:', err);
     } finally {
-      setIsLoading(false);
+      if (initial) setIsLoading(false);
     }
   }
 
@@ -250,10 +251,10 @@ function EditProductModal({
       if (result.success) {
         onSaved();
       } else {
-        alert(result.error || 'Failed to update product');
+        toast(result.error || 'Failed to update product');
       }
     } catch {
-      alert('Failed to update product');
+      toast('Failed to update product');
     } finally {
       setIsSubmitting(false);
     }
@@ -339,10 +340,10 @@ function CloneProductModal({
       if (result.success) {
         onCloned();
       } else {
-        alert(result.error || 'Failed to clone product');
+        toast(result.error || 'Failed to clone product');
       }
     } catch {
-      alert('Failed to clone product');
+      toast('Failed to clone product');
     } finally {
       setIsSubmitting(false);
     }
