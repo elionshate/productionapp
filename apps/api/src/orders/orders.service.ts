@@ -363,14 +363,52 @@ export class OrdersService {
     await this.prisma.$transaction(async (tx) => {
       const mfgOrders = await tx.manufacturingOrder.findMany({
         where: { orderId: item.orderId, productId: item.productId },
+        include: { requirements: true },
       });
+
+      // Collect element IDs from requirements being deleted
+      const elementIds = new Set<string>();
       for (const mfg of mfgOrders) {
+        for (const req of mfg.requirements) {
+          elementIds.add(req.elementId);
+        }
         await tx.materialRequirement.deleteMany({ where: { manufacturingOrderId: mfg.id } });
       }
       await tx.manufacturingOrder.deleteMany({
         where: { orderId: item.orderId, productId: item.productId },
       });
       await tx.orderItem.delete({ where: { id: orderItemId } });
+
+      // Clean up InventoryAllocation records for elements that are no longer needed
+      // Check remaining requirements for this order — only delete allocations for elements
+      // that have NO remaining requirements from other products in this order
+      const remainingReqs = await tx.materialRequirement.findMany({
+        where: { manufacturingOrder: { orderId: item.orderId } },
+      });
+      const stillNeededElements = new Set(remainingReqs.map(r => r.elementId));
+
+      for (const elementId of elementIds) {
+        if (!stillNeededElements.has(elementId)) {
+          // No other product in this order needs this element — delete the allocation
+          await tx.inventoryAllocation.deleteMany({
+            where: { orderId: item.orderId, elementId },
+          });
+        } else {
+          // Element is still needed but possibly in smaller quantity — trim over-allocations
+          const totalNeeded = remainingReqs
+            .filter(r => r.elementId === elementId)
+            .reduce((sum, r) => sum + r.quantityNeeded, 0);
+          const allocation = await tx.inventoryAllocation.findUnique({
+            where: { orderId_elementId: { orderId: item.orderId, elementId } },
+          });
+          if (allocation && allocation.amountAllocated > totalNeeded) {
+            await tx.inventoryAllocation.update({
+              where: { id: allocation.id },
+              data: { amountAllocated: totalNeeded },
+            });
+          }
+        }
+      }
     });
 
     const updatedOrder = await this.prisma.order.findUnique({
@@ -389,9 +427,90 @@ export class OrdersService {
     if (item.order.status === 'shipped') throw new BadRequestException('Cannot modify a shipped order');
     if (data.boxesNeeded < 1) throw new BadRequestException('Boxes needed must be at least 1');
 
-    await this.prisma.orderItem.update({
-      where: { id: orderItemId },
-      data: { boxesNeeded: data.boxesNeeded },
+    await this.prisma.$transaction(async (tx) => {
+      await tx.orderItem.update({
+        where: { id: orderItemId },
+        data: { boxesNeeded: data.boxesNeeded },
+      });
+
+      // If order is in_production, recalculate manufacturing requirements
+      if (item.order.status === 'in_production') {
+        const product = await tx.product.findUnique({
+          where: { id: item.productId },
+          include: { productElements: { include: { element: true } } },
+        });
+
+        const mfgOrder = await tx.manufacturingOrder.findFirst({
+          where: { orderId: item.orderId, productId: item.productId },
+          include: { requirements: true },
+        });
+
+        if (mfgOrder && product) {
+          const newBoxesAssembled = item.boxesAssembled ?? 0;
+          const boxesStillNeeded = Math.max(0, data.boxesNeeded - newBoxesAssembled);
+          const newTotalUnits = boxesStillNeeded * (product.unitsPerBox ?? 1);
+
+          await tx.manufacturingOrder.update({
+            where: { id: mfgOrder.id },
+            data: { quantityToMake: newTotalUnits },
+          });
+
+          for (const pe of product.productElements) {
+            const rawQty = pe.quantityNeeded * newTotalUnits;
+            const quantityNeeded = pe.element?.isDualColor ? Math.ceil(rawQty / 2) : rawQty;
+            const totalWeightGrams = Number(pe.element?.weightGrams ?? 0) * quantityNeeded;
+
+            await tx.materialRequirement.upsert({
+              where: {
+                manufacturingOrderId_elementId: {
+                  manufacturingOrderId: mfgOrder.id,
+                  elementId: pe.elementId,
+                },
+              },
+              create: {
+                manufacturingOrderId: mfgOrder.id,
+                elementId: pe.elementId,
+                quantityNeeded,
+                totalWeightGrams,
+              },
+              update: {
+                quantityNeeded,
+                totalWeightGrams,
+              },
+            });
+          }
+
+          // Trim over-allocations if requirements shrank
+          const allMfgOrders = await tx.manufacturingOrder.findMany({
+            where: { orderId: item.orderId },
+            include: { requirements: true },
+          });
+          const elementNeeds = new Map<string, number>();
+          for (const mo of allMfgOrders) {
+            for (const req of mo.requirements) {
+              const cur = elementNeeds.get(req.elementId) ?? 0;
+              elementNeeds.set(req.elementId, cur + req.quantityNeeded);
+            }
+          }
+
+          const orderAllocations = await tx.inventoryAllocation.findMany({
+            where: { orderId: item.orderId },
+          });
+          for (const alloc of orderAllocations) {
+            const needed = elementNeeds.get(alloc.elementId) ?? 0;
+            if (alloc.amountAllocated > needed) {
+              if (needed <= 0) {
+                await tx.inventoryAllocation.delete({ where: { id: alloc.id } });
+              } else {
+                await tx.inventoryAllocation.update({
+                  where: { id: alloc.id },
+                  data: { amountAllocated: needed },
+                });
+              }
+            }
+          }
+        }
+      }
     });
 
     const updatedOrder = await this.prisma.order.findUnique({
@@ -403,6 +522,7 @@ export class OrdersService {
 
   async delete(id: string) {
     await this.prisma.$transaction(async (tx) => {
+      await tx.inventoryAllocation.deleteMany({ where: { orderId: id } });
       await tx.materialRequirement.deleteMany({ where: { manufacturingOrder: { orderId: id } } });
       await tx.manufacturingOrder.deleteMany({ where: { orderId: id } });
       await tx.orderItem.deleteMany({ where: { orderId: id } });

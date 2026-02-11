@@ -10,6 +10,7 @@ import { useI18n } from '../../lib/i18n';
 export default function ProductionTab() {
   const [productionOrders, setProductionOrders] = useState<ProductionOrderData[]>([]);
   const [isLoadingProduction, setIsLoadingProduction] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const { t } = useI18n();
 
   useEffect(() => {
@@ -19,11 +20,18 @@ export default function ProductionTab() {
   async function loadProductionOrders(initial = false) {
     if (!window.electron) { setIsLoadingProduction(false); return; }
     if (initial) setIsLoadingProduction(true);
+    setLoadError(null);
     try {
       const result = await window.electron.getProductionOrders();
-      if (result.success) setProductionOrders(result.data);
+      if (result.success) {
+        setProductionOrders(result.data);
+      } else {
+        console.error('Production API error:', result.error);
+        setLoadError(result.error || 'Unknown error loading production orders');
+      }
     } catch (err) {
       console.error('Failed to load production orders:', err);
+      setLoadError(String(err));
     } finally {
       if (initial) setIsLoadingProduction(false);
     }
@@ -277,6 +285,18 @@ export default function ProductionTab() {
         {isLoadingProduction ? (
           <div className="flex items-center justify-center py-20">
             <div className="text-sm text-zinc-500 dark:text-zinc-400">{t('common.loading')}</div>
+          </div>
+        ) : loadError ? (
+          <div className="flex flex-col items-center justify-center py-20">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-red-100 dark:bg-red-900/30">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 15.75h.007v.008H12v-.008z" />
+              </svg>
+            </div>
+            <p className="text-sm font-medium text-red-600 dark:text-red-400">Failed to load production data</p>
+            <p className="mt-1 text-xs text-zinc-400 dark:text-zinc-500 max-w-md text-center">{loadError}</p>
+            <button onClick={() => loadProductionOrders(true)} className="mt-3 rounded-lg bg-red-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-red-700">Retry</button>
           </div>
         ) : productionOrders.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20">
