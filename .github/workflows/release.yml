@@ -28,51 +28,49 @@ jobs:
       - name: Generate Prisma Client
         run: npm run prisma:generate
 
-      - name: Decode and write code-signing certificate
-        id: cert
-        continue-on-error: true
+      - name: Setup code-signing certificate
+        id: cert-setup
         run: |
-          if (-not "${{ secrets.WIN_CSC_LINK_BASE64 }}") {
+          $signing = "false"
+          $secret = "${{ secrets.WIN_CSC_LINK_BASE64 }}"
+          if (-not $secret -or $secret.Length -lt 10) {
             Write-Host "No certificate secret found — build will produce unsigned installer"
+            echo "SIGNING_READY=false" >> $env:GITHUB_OUTPUT
             exit 0
           }
-          $cert = [System.Convert]::FromBase64String("${{ secrets.WIN_CSC_LINK_BASE64 }}")
-          [System.IO.File]::WriteAllBytes("code-signing.pfx", $cert)
-          if (Test-Path "code-signing.pfx") {
-            Write-Host "Certificate file created successfully"
-          } else {
-            Write-Host "::warning::Failed to create certificate file"
-            exit 1
-          }
-        shell: pwsh
-
-      - name: Validate code-signing certificate
-        if: steps.cert.outcome == 'success'
-        id: cert-validate
-        continue-on-error: true
-        env:
-          CERT_PASS: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
-        run: |
           try {
-            $cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2("code-signing.pfx", $env:CERT_PASS)
-            Write-Host "Certificate valid — Subject: $($cert.Subject), Expires: $($cert.NotAfter)"
+            $certBytes = [System.Convert]::FromBase64String($secret)
+            [System.IO.File]::WriteAllBytes("${{ github.workspace }}\code-signing.pfx", $certBytes)
+            Write-Host "Certificate file written ($($certBytes.Length) bytes)"
+          } catch {
+            Write-Host "::warning::Failed to decode/write certificate: $_"
+            echo "SIGNING_READY=false" >> $env:GITHUB_OUTPUT
+            exit 0
+          }
+          try {
+            $pfx = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2(
+              "${{ github.workspace }}\code-signing.pfx",
+              "${{ secrets.WIN_CSC_KEY_PASSWORD }}"
+            )
+            Write-Host "Certificate valid — Subject: $($pfx.Subject), Expires: $($pfx.NotAfter)"
+            $signing = "true"
           } catch {
             Write-Host "::warning::Certificate validation failed: $_ — building unsigned"
-            Remove-Item -Path "code-signing.pfx" -ErrorAction SilentlyContinue
-            exit 1
+            Remove-Item -Path "${{ github.workspace }}\code-signing.pfx" -ErrorAction SilentlyContinue
           }
+          echo "SIGNING_READY=$signing" >> $env:GITHUB_OUTPUT
         shell: pwsh
 
       - name: Build and publish Electron app (signed)
-        if: steps.cert-validate.outcome == 'success'
+        if: steps.cert-setup.outputs.SIGNING_READY == 'true'
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
-          CSC_LINK: ${{ github.workspace }}/code-signing.pfx
+          CSC_LINK: ${{ github.workspace }}\code-signing.pfx
           CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
         run: npm run electron:build
 
       - name: Build and publish Electron app (unsigned)
-        if: steps.cert-validate.outcome != 'success'
+        if: steps.cert-setup.outputs.SIGNING_READY != 'true'
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: false
