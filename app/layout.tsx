@@ -5,6 +5,7 @@ import ApiBridgeProvider from "../components/api-bridge-provider";
 import AuthGate from "../components/auth-gate";
 import { I18nProvider } from "../lib/i18n";
 import { ToastProvider } from "../components/ui/toast";
+import UpdateNotification from "../components/update-notification";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -34,6 +35,7 @@ export default function RootLayout({
         <ApiBridgeProvider>
           <I18nProvider>
             <ToastProvider>
+              <UpdateNotification />
               <AuthGate>{children}</AuthGate>
             </ToastProvider>
           </I18nProvider>

@@ -139,6 +139,11 @@ app.whenReady().then(async () => {
       }
     });
 
+    // Handle auto-update install
+    ipcMain.handle('quit-and-install', () => {
+      autoUpdater.quitAndInstall();
+    });
+
     createWindow(apiPort);
 
     // ===== AUTO-UPDATER SETUP =====

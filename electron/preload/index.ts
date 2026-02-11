@@ -20,4 +20,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onUpdateStatus: (callback: (status: unknown) => void) => {
     ipcRenderer.on('update-status', (_event, status) => callback(status));
   },
+
+  /** Quit app and install pending update */
+  quitAndInstall: () => ipcRenderer.invoke('quit-and-install'),
 });
