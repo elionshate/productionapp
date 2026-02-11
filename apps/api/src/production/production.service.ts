@@ -45,9 +45,31 @@ export class ProductionService {
       totalAllocatedPerElement.set(alloc.elementId, prev + alloc.amountAllocated);
     }
 
-    // Retroactive fix: auto-generate manufacturing orders for orders missing them
+    // Retroactive fix: auto-generate or regenerate manufacturing orders
+    // Case 1: No manufacturing orders exist at all
+    // Case 2: Manufacturing orders exist but have NO requirements (stale — product elements were linked after order creation)
     for (const order of orders) {
-      if (order.manufacturingOrders.length === 0 && order.orderItems.length > 0) {
+      const hasRequirements = order.manufacturingOrders.some(m => m.requirements.length > 0);
+      const hasItemsWithElements = order.orderItems.some(item =>
+        item.product?.productElements && item.product.productElements.length > 0
+      );
+
+      const needsRegeneration =
+        order.orderItems.length > 0 &&
+        hasItemsWithElements &&
+        !hasRequirements;
+
+      if (needsRegeneration) {
+        // Delete stale manufacturing orders (empty requirement sets)
+        if (order.manufacturingOrders.length > 0) {
+          await this.prisma.$transaction(async (tx) => {
+            for (const mfg of order.manufacturingOrders) {
+              await tx.materialRequirement.deleteMany({ where: { manufacturingOrderId: mfg.id } });
+            }
+            await tx.manufacturingOrder.deleteMany({ where: { orderId: order.id } });
+          });
+        }
+        // Regenerate with current product element composition
         await this.prisma.$transaction(async (tx) => {
           await generateManufacturingOrders(tx, order.id, order.orderItems);
         });

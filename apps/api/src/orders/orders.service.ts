@@ -329,6 +329,21 @@ export class OrdersService {
       VALUES (${itemId}, ${orderId}, ${data.productId}, ${data.boxesNeeded}, datetime('now'))
     `;
 
+    // If order is already in_production, generate manufacturing orders for the new item
+    if (order.status === 'in_production') {
+      const newItem = await this.prisma.orderItem.findUnique({
+        where: { id: itemId },
+        include: {
+          product: { include: { productElements: { include: { element: true } } } },
+        },
+      });
+      if (newItem) {
+        await this.prisma.$transaction(async (tx) => {
+          await generateManufacturingOrders(tx, orderId, [newItem]);
+        });
+      }
+    }
+
     const updatedOrder = await this.prisma.order.findUnique({
       where: { id: orderId },
       include: this.defaultInclude,

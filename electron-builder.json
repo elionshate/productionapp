@@ -1,7 +1,6 @@
 {
   "appId": "com.productionapp.app",
   "productName": "Production Management",
-  "publisherName": "Production Management",
   "directories": {
     "output": "dist/installer",
     "buildResources": "public"
