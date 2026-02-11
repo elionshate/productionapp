@@ -30,17 +30,21 @@ jobs:
 
       - name: Setup code-signing certificate
         id: cert-setup
+        env:
+          CERT_BASE64: ${{ secrets.WIN_CSC_LINK_BASE64 }}
+          CERT_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+          WORKSPACE: ${{ github.workspace }}
         run: |
           $signing = "false"
-          $secret = "${{ secrets.WIN_CSC_LINK_BASE64 }}"
-          if (-not $secret -or $secret.Length -lt 10) {
+          if (-not $env:CERT_BASE64 -or $env:CERT_BASE64.Length -lt 10) {
             Write-Host "No certificate secret found — build will produce unsigned installer"
             echo "SIGNING_READY=false" >> $env:GITHUB_OUTPUT
             exit 0
           }
+          $pfxPath = Join-Path $env:WORKSPACE "code-signing.pfx"
           try {
-            $certBytes = [System.Convert]::FromBase64String($secret)
-            [System.IO.File]::WriteAllBytes("${{ github.workspace }}\code-signing.pfx", $certBytes)
+            $certBytes = [System.Convert]::FromBase64String($env:CERT_BASE64)
+            [System.IO.File]::WriteAllBytes($pfxPath, $certBytes)
             Write-Host "Certificate file written ($($certBytes.Length) bytes)"
           } catch {
             Write-Host "::warning::Failed to decode/write certificate: $_"
@@ -48,15 +52,12 @@ jobs:
             exit 0
           }
           try {
-            $pfx = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2(
-              "${{ github.workspace }}\code-signing.pfx",
-              "${{ secrets.WIN_CSC_KEY_PASSWORD }}"
-            )
+            $pfx = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2($pfxPath, $env:CERT_PASSWORD)
             Write-Host "Certificate valid — Subject: $($pfx.Subject), Expires: $($pfx.NotAfter)"
             $signing = "true"
           } catch {
             Write-Host "::warning::Certificate validation failed: $_ — building unsigned"
-            Remove-Item -Path "${{ github.workspace }}\code-signing.pfx" -ErrorAction SilentlyContinue
+            Remove-Item -Path $pfxPath -ErrorAction SilentlyContinue
           }
           echo "SIGNING_READY=$signing" >> $env:GITHUB_OUTPUT
         shell: pwsh
