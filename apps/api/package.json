@@ -1,6 +1,6 @@
 {
   "name": "@productionapp/api",
-  "version": "0.2.9",
+  "version": "0.2.91",
   "private": true,
   "main": "dist/main.js",
   "scripts": {
