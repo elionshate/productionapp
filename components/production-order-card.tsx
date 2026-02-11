@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, memo } from 'react';
+import { useState, useEffect, memo } from 'react';
 import type { ProductionOrderData, ProductionElementGroup } from '../types/ipc';
 import { colorNameToHex } from '../lib/utils';
 import { useI18n } from '../lib/i18n';
@@ -128,6 +128,12 @@ function ProductionElementRow({ element, orderId, onRecordProduction }: Producti
   const [remaining, setRemaining] = useState(element.remaining);
   const [totalProduced, setTotalProduced] = useState(element.totalProduced);
   const [error, setError] = useState('');
+
+  // Sync local state with prop changes (e.g., when stock is applied from Stock tab)
+  useEffect(() => {
+    setRemaining(element.remaining);
+    setTotalProduced(element.totalProduced);
+  }, [element.remaining, element.totalProduced]);
 
   const progressPercent = element.totalNeeded > 0
     ? Math.min(100, (totalProduced / element.totalNeeded) * 100)
