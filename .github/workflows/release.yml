@@ -29,13 +29,27 @@ jobs:
         run: npm run prisma:generate
 
       - name: Decode and write code-signing certificate
+        id: cert
+        continue-on-error: true
         run: |
+          if (-not "${{ secrets.WIN_CSC_LINK_BASE64 }}") {
+            Write-Host "No certificate secret found — build will produce unsigned installer"
+            exit 0
+          }
           $cert = [System.Convert]::FromBase64String("${{ secrets.WIN_CSC_LINK_BASE64 }}")
           [System.IO.File]::WriteAllBytes("code-signing.pfx", $cert)
-          if (Test-Path "code-signing.pfx") { Write-Host "Certificate created successfully" } else { throw "Failed to create certificate" }
+          if (Test-Path "code-signing.pfx") {
+            Write-Host "Certificate file created successfully"
+          } else {
+            Write-Host "::warning::Failed to create certificate file"
+            exit 1
+          }
         shell: pwsh
 
       - name: Validate code-signing certificate
+        if: steps.cert.outcome == 'success'
+        id: cert-validate
+        continue-on-error: true
         env:
           CERT_PASS: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
         run: |
@@ -43,13 +57,23 @@ jobs:
             $cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2("code-signing.pfx", $env:CERT_PASS)
             Write-Host "Certificate valid — Subject: $($cert.Subject), Expires: $($cert.NotAfter)"
           } catch {
-            throw "Certificate validation failed: $_"
+            Write-Host "::warning::Certificate validation failed: $_ — building unsigned"
+            Remove-Item -Path "code-signing.pfx" -ErrorAction SilentlyContinue
+            exit 1
           }
         shell: pwsh
 
-      - name: Build and publish Electron app
+      - name: Build and publish Electron app (signed)
+        if: steps.cert-validate.outcome == 'success'
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
-          CSC_LINK: code-signing.pfx
+          CSC_LINK: ${{ github.workspace }}/code-signing.pfx
           CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+        run: npm run electron:build
+
+      - name: Build and publish Electron app (unsigned)
+        if: steps.cert-validate.outcome != 'success'
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          CSC_IDENTITY_AUTO_DISCOVERY: false
         run: npm run electron:build

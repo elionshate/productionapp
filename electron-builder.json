@@ -48,8 +48,7 @@
     ],
     "icon": "public/icon.ico",
     "artifactName": "${productName}-Setup-${version}.${ext}",
-    "forceCodeSigning": false,
-    "certificateFile": "code-signing.pfx"
+    "forceCodeSigning": false
   },
   "nsis": {
     "oneClick": false,
