@@ -74,11 +74,12 @@ model Element {
   createdAt     DateTime @default(now()) @map("created_at")
 
   // Relations
-  rawMaterial           RawMaterial?         @relation(fields: [rawMaterialId], references: [id], onDelete: SetNull)
-  productElements       ProductElement[]
-  inventory             Inventory[]
-  inventoryTransactions InventoryTransaction[]
-  materialRequirements  MaterialRequirement[]
+  rawMaterial            RawMaterial?         @relation(fields: [rawMaterialId], references: [id], onDelete: SetNull)
+  productElements        ProductElement[]
+  inventory              Inventory[]
+  inventoryTransactions  InventoryTransaction[]
+  materialRequirements   MaterialRequirement[]
+  inventoryAllocations   InventoryAllocation[]
 
   @@map("elements")
 }
@@ -172,8 +173,9 @@ model Order {
   notes       String?
 
   // Relations
-  orderItems          OrderItem[]
-  manufacturingOrders ManufacturingOrder[]
+  orderItems            OrderItem[]
+  manufacturingOrders   ManufacturingOrder[]
+  inventoryAllocations  InventoryAllocation[]
 
   @@map("orders")
 }
@@ -196,6 +198,21 @@ model OrderItem {
 // ============================================================================
 // MANUFACTURING LAYER (MRP - Material Requirements Planning)
 // ============================================================================
+
+model InventoryAllocation {
+  id              String   @id @default(cuid())
+  orderId         String   @map("order_id")
+  elementId       String   @map("element_id")
+  amountAllocated Int      @default(0) @map("amount_allocated") // How much inventory was manually applied
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  // Relations
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  element Element @relation(fields: [elementId], references: [id])
+
+  @@unique([orderId, elementId])
+  @@map("inventory_allocations")
+}
 
 model ManufacturingOrder {
   id             String   @id @default(cuid())

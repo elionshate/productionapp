@@ -180,6 +180,8 @@ export const recordProduction = (data: {
   elementId: string;
   amountProduced: number;
 }) => post('/production/record', data);
+export const applyInventoryToOrder = (data: { orderId: string }) =>
+  post('/production/apply-inventory', data);
 
 // ========== ASSEMBLY ==========
 export const getAssemblyOrders = () => get('/assembly');

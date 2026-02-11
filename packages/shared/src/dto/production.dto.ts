@@ -21,7 +21,8 @@ export interface ProductionElementGroup {
   totalNeeded: number;
   totalProduced: number;
   remaining: number;
-  inventoryAvailable: number;
+  allocated: number;
+  excessAvailable: number;
   totalWeightGrams: number;
 }
 
@@ -32,4 +33,10 @@ export interface ProductionOrderData {
   createdAt: Date;
   notes: string | null;
   elements: ProductionElementGroup[];
+}
+
+export interface ApplyInventoryResponse {
+  orderId: string;
+  applied: Array<{ elementId: string; amountApplied: number }>;
+  orderComplete: boolean;
 }

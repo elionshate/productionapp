@@ -75,6 +75,8 @@ export function initializeApiBridge() {
     getProductionOrders: () => api.getProductionOrders(),
     recordProduction: (data: { orderId: string; elementId: string; amountProduced: number }) =>
       api.recordProduction(data),
+    applyInventoryToOrder: (data: { orderId: string }) =>
+      api.applyInventoryToOrder(data),
 
     // ========== ASSEMBLY ==========
     getAssemblyOrders: () => api.getAssemblyOrders(),

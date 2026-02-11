@@ -154,6 +154,40 @@ export class StockService {
             },
           });
         }
+
+        // Trim over-allocations: if requirements shrank, cap allocations to new totalNeeded
+        // Aggregate new element needs across ALL manufacturing orders for this order
+        const allMfgOrders = await tx.manufacturingOrder.findMany({
+          where: { orderId },
+          include: { requirements: true },
+        });
+        const elementNeeds = new Map<string, number>();
+        for (const mo of allMfgOrders) {
+          for (const req of mo.requirements) {
+            const cur = elementNeeds.get(req.elementId) ?? 0;
+            elementNeeds.set(req.elementId, cur + req.quantityNeeded);
+          }
+        }
+
+        // Check each allocation for this order and trim if over-allocated
+        const orderAllocations = await tx.inventoryAllocation.findMany({
+          where: { orderId },
+        });
+        for (const alloc of orderAllocations) {
+          const needed = elementNeeds.get(alloc.elementId) ?? 0;
+          if (alloc.amountAllocated > needed) {
+            if (needed <= 0) {
+              // Requirements dropped to 0, delete the allocation
+              await tx.inventoryAllocation.delete({ where: { id: alloc.id } });
+            } else {
+              // Cap allocation to what's needed
+              await tx.inventoryAllocation.update({
+                where: { id: alloc.id },
+                data: { amountAllocated: needed },
+              });
+            }
+          }
+        }
       }
     });
 

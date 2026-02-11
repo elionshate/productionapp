@@ -119,6 +119,12 @@ type TranslationKeys = {
   'production.assemblySheet': string;
   'production.productionPrint': string;
   'production.qty': string;
+  'production.applyInventory': string;
+  'production.allocated': string;
+  'production.excess': string;
+  'production.noExcess': string;
+  'production.applySuccess': string;
+  'production.applyFailed': string;
 
   // ── Inventory / Assembly Tab ──
   'inventory.title': string;
@@ -294,6 +300,12 @@ const translations: Record<Language, TranslationKeys> = {
     'production.assemblySheet': 'Assembly Sheet',
     'production.productionPrint': 'Production Print',
     'production.qty': 'Qty',
+    'production.applyInventory': 'Apply Inventory',
+    'production.allocated': 'Allocated',
+    'production.excess': 'Excess',
+    'production.noExcess': 'No excess available',
+    'production.applySuccess': 'Inventory applied successfully',
+    'production.applyFailed': 'Failed to apply inventory',
 
     'inventory.title': 'Element Inventory',
     'inventory.subtitle': 'Current stock of manufactured elements',
@@ -458,6 +470,12 @@ const translations: Record<Language, TranslationKeys> = {
     'production.assemblySheet': 'Fleta e Montimit',
     'production.productionPrint': 'Printimi i Prodhimit',
     'production.qty': 'Sasia',
+    'production.applyInventory': 'Apliko Inventarin',
+    'production.allocated': 'Alokuar',
+    'production.excess': 'Tepricë',
+    'production.noExcess': 'Nuk ka tepricë të disponueshme',
+    'production.applySuccess': 'Inventari u aplikua me sukses',
+    'production.applyFailed': 'Dështoi aplikimi i inventarit',
 
     'inventory.title': 'Inventari i Elementeve',
     'inventory.subtitle': 'Stoku aktual i elementeve të prodhuara',
@@ -622,6 +640,12 @@ const translations: Record<Language, TranslationKeys> = {
     'production.assemblySheet': 'Лист за Склопување',
     'production.productionPrint': 'Печатење на Производство',
     'production.qty': 'Кол.',
+    'production.applyInventory': 'Примени Инвентар',
+    'production.allocated': 'Алоцирано',
+    'production.excess': 'Вишок',
+    'production.noExcess': 'Нема достапен вишок',
+    'production.applySuccess': 'Инвентарот е успешно применет',
+    'production.applyFailed': 'Неуспешно применување на инвентар',
 
     'inventory.title': 'Инвентар на Елементи',
     'inventory.subtitle': 'Тековна залиха на произведени елементи',

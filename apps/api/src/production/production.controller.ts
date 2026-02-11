@@ -16,4 +16,10 @@ export class ProductionController {
     const data = await this.productionService.recordProduction(body);
     return { success: true, data };
   }
+
+  @Post('apply-inventory')
+  async applyInventoryToOrder(@Body() body: { orderId: string }) {
+    const data = await this.productionService.applyInventoryToOrder(body.orderId);
+    return { success: true, data };
+  }
 }

@@ -8,6 +8,7 @@ import { useI18n } from '../lib/i18n';
 interface ProductionOrderCardProps {
   order: ProductionOrderData;
   onRecordProduction: (orderId: string, elementId: string, amount: number) => Promise<number | null>;
+  onApplyInventory: (orderId: string) => Promise<void>;
   onPrint?: (orderId: string) => void;
   onPrintAssembly?: (orderId: string) => void;
 }
@@ -27,8 +28,22 @@ function formatWeight(grams: number): string {
   return `${grams.toFixed(1)} g`;
 }
 
-const ProductionOrderCard = memo(function ProductionOrderCard({ order, onRecordProduction, onPrint, onPrintAssembly }: ProductionOrderCardProps) {
+const ProductionOrderCard = memo(function ProductionOrderCard({ order, onRecordProduction, onApplyInventory, onPrint, onPrintAssembly }: ProductionOrderCardProps) {
   const { t } = useI18n();
+  const [isApplying, setIsApplying] = useState(false);
+
+  // Check if any element has excess available AND remaining need
+  const canApplyInventory = order.elements.some(el => el.excessAvailable > 0 && el.remaining > 0);
+
+  async function handleApplyInventory() {
+    setIsApplying(true);
+    try {
+      await onApplyInventory(order.orderId);
+    } finally {
+      setIsApplying(false);
+    }
+  }
+
   return (
     <div className="rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
       {/* Order Header */}
@@ -42,6 +57,20 @@ const ProductionOrderCard = memo(function ProductionOrderCard({ order, onRecordP
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {/* Apply Inventory Button */}
+          {canApplyInventory && (
+            <button
+              onClick={handleApplyInventory}
+              disabled={isApplying}
+              className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+              title={t('production.applyInventory')}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+              </svg>
+              {isApplying ? '...' : t('production.applyInventory')}
+            </button>
+          )}
           {onPrintAssembly && (
             <button
               onClick={() => onPrintAssembly(order.orderId)}
@@ -126,18 +155,20 @@ function ProductionElementRow({ element, orderId, onRecordProduction }: Producti
   const [inputValue, setInputValue] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [remaining, setRemaining] = useState(element.remaining);
-  const [inventoryAvailable, setInventoryAvailable] = useState(element.inventoryAvailable ?? 0);
+  const [allocated, setAllocated] = useState(element.allocated ?? 0);
+  const [excessAvailable, setExcessAvailable] = useState(element.excessAvailable ?? 0);
   const [error, setError] = useState('');
 
-  // Sync local state with prop changes (e.g., when stock is applied from Stock tab)
+  // Sync local state with prop changes (e.g., when inventory is applied or data refreshes)
   useEffect(() => {
     setRemaining(element.remaining);
-    setInventoryAvailable(element.inventoryAvailable ?? 0);
-  }, [element.remaining, element.inventoryAvailable]);
+    setAllocated(element.allocated ?? 0);
+    setExcessAvailable(element.excessAvailable ?? 0);
+  }, [element.remaining, element.allocated, element.excessAvailable]);
 
-  // Progress based on inventory vs total needed
+  // Progress based on allocated vs total needed
   const progressPercent = element.totalNeeded > 0
-    ? Math.min(100, (inventoryAvailable / element.totalNeeded) * 100)
+    ? Math.min(100, (allocated / element.totalNeeded) * 100)
     : 0;
 
   const isDone = remaining <= 0;
@@ -156,8 +187,8 @@ function ProductionElementRow({ element, orderId, onRecordProduction }: Producti
       const newRemaining = await onRecordProduction(orderId, element.elementId, amount);
       if (newRemaining !== null) {
         setRemaining(newRemaining);
-        // Update inventory available: new inventory = totalNeeded - newRemaining
-        setInventoryAvailable(element.totalNeeded - newRemaining);
+        // Update allocated: new allocated = totalNeeded - newRemaining
+        setAllocated(element.totalNeeded - newRemaining);
         setInputValue('');
       } else {
         setError('Failed to record');
@@ -225,8 +256,11 @@ function ProductionElementRow({ element, orderId, onRecordProduction }: Producti
         </div>
         <div className="flex items-center gap-4 mt-1.5 text-sm text-zinc-600 dark:text-zinc-300">
           <span>{t('production.need')}: <span className="font-bold text-lg text-zinc-900 dark:text-zinc-100">{element.totalNeeded}</span></span>
-          <span>{t('production.inStock')}: <span className="font-bold text-lg text-blue-600 dark:text-blue-400">{inventoryAvailable}</span></span>
+          <span>{t('production.allocated')}: <span className="font-bold text-lg text-emerald-600 dark:text-emerald-400">{allocated}</span></span>
           <span>{t('production.remaining')}: <span className={`font-bold text-lg ${isDone ? 'text-green-600 dark:text-green-400' : 'text-amber-600 dark:text-amber-400'}`}>{Math.max(0, remaining)}</span></span>
+          {excessAvailable > 0 && !isDone && (
+            <span>{t('production.excess')}: <span className="font-bold text-lg text-blue-600 dark:text-blue-400">{excessAvailable}</span></span>
+          )}
           <span>{t('production.weight')}: <span className="font-semibold">{formatWeight(remainingWeight)}</span></span>
         </div>
 

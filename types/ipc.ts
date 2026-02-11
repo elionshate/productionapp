@@ -166,7 +166,8 @@ export interface ProductionElementGroup {
   totalNeeded: number;
   totalProduced: number;
   remaining: number;
-  inventoryAvailable: number;
+  allocated: number;
+  excessAvailable: number;
   totalWeightGrams: number;
 }
 
@@ -425,6 +426,7 @@ export interface ElectronAPI {
   // ========== PRODUCTION ==========
   getProductionOrders: () => Promise<IPCResponse<ProductionOrderData[]>>;
   recordProduction: (data: RecordProductionDTO) => Promise<IPCResponse<{ remaining: number; orderComplete: boolean }>>;
+  applyInventoryToOrder: (data: { orderId: string }) => Promise<IPCResponse<{ orderId: string; applied: Array<{ elementId: string; amountApplied: number }>; orderComplete: boolean }>>;
 
   // ========== ASSEMBLY ==========
   getAssemblyOrders: () => Promise<IPCResponse<AssemblyOrderData[]>>;

@@ -1,5 +1,191 @@
 # Agent Implementation Log — Stock Tab Manual Control (Phase 15)
 
+## Release: v0.2.91 — 2026-02-11
+- **Action**: Manual inventory allocation system with virtual-only allocation tracking
+- **Commit**: feat(production): inventory allocation update (manual allocation, virtual tracking, no inventory deduction)
+- **Tag**: v0.2.91
+- **Label**: Inventory Allocation Update
+
+**Date**: 2026-02-11  
+**Purpose**: Implement manual inventory allocation for production without auto-deduction from inventory tab
+
+---
+
+## 🎯 Phase 18 Implementation Summary — Inventory Allocation Update
+
+### Problem (Edge Case Scenario)
+Previously, the system auto-deducted production needs from the element inventory pool, making it unclear how much inventory was actually needed vs. how much was physically available. This could lead to workers producing incorrect amounts or inventory discrepancies.
+
+**Specific Issues:**
+1. When 10 orders are in production and inventory = 80 elements, it was unclear which order gets the allocation
+2. No "Apply Inventory" button per order — inventory was global or disappeared
+3. If order 1 had 80 elements allocated but stock was later manually applied, the allocation didn't adjust
+4. Inventory tab showed incorrect physical counts (deducted by allocations instead of showing real stock)
+
+### Solution Applied
+
+#### Database Schema Changes
+
+**Files**: Both `prisma/schema.prisma` and `apps/api/prisma/schema.prisma`
+
+Added new `InventoryAllocation` model to track manual allocations per order per element:
+```prisma
+model InventoryAllocation {
+  id              String   @id @default(cuid())
+  orderId         String   @map("order_id")
+  elementId       String   @map("element_id")
+  amountAllocated Int      @default(0) @map("amount_allocated")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  element Element @relation(fields: [elementId], references: [id])
+
+  @@unique([orderId, elementId])
+  @@map("inventory_allocations")
+}
+```
+
+Applied migration: `20260211190004_add_inventory_allocations`
+
+#### Backend Changes
+
+**File**: `apps/api/src/production/production.service.ts`
+
+1. **`getInProduction()` now calculates excess correctly**:
+   - `excess = globalInventory - sum(ALL allocations across ALL orders)` 
+   - Shows truly unallocated inventory available for next order
+   - Tracks both `allocated` (this order) and `excessAvailable` (unallocated)
+
+2. **`applyInventoryToOrder()` is now VIRTUAL-ONLY**:
+   - Does NOT deduct from `Inventory.totalAmount`
+   - Only creates/updates `InventoryAllocation` records
+   - Available calculates as: `unallocatedExcess = globalInventory - totalAllocatedAcrossAllOrders`
+   - Respects the sequential queue: Order 1 gets excess, Order 2 gets what's left after subtracting Order 1's allocation
+
+3. **New endpoint**: `POST /production/apply-inventory` with body `{ orderId: string }`
+
+**File**: `apps/api/src/production/production.controller.ts`
+
+Added new endpoint handler for inventory allocation
+
+**File**: `apps/api/src/stock/stock.service.ts`
+
+Enhanced `applyStockToOrder()` to trim over-allocations:
+- When user manually applies stock and manufacturing requirements shrink, allocations are automatically capped to new requirement
+- If requirements drop to 0, the allocation is deleted (frees excess for other orders)
+- E.g., if order had 100 element allocation but stock application cut need to 60, allocation is capped to 60
+
+#### Type & DTO Updates
+
+**Files**: `types/ipc.ts`, `packages/shared/src/dto/production.dto.ts`
+
+Changed `ProductionElementGroup`:
+- Removed: `inventoryAvailable: number` (confusing — was it global or per-order?)
+- Added: `allocated: number` (what this order has allocated)
+- Added: `excessAvailable: number` (unallocated inventory, can be used for next order)
+- Kept: `totalNeeded`, `totalProduced`, `remaining` (= totalNeeded - allocated)
+
+Added `ApplyInventoryResponse` type
+
+Added to `ElectronAPI`:
+```typescript
+applyInventoryToOrder: (data: { orderId: string }) => Promise<IPCResponse<{
+  orderId: string;
+  applied: Array<{ elementId: string; amountApplied: number }>;
+  orderComplete: boolean;
+}>>;
+```
+
+#### Frontend Changes
+
+**File**: `components/production-order-card.tsx`
+
+1. Updated props: `onApplyInventory: (orderId: string) => Promise<void>` added
+2. Changed element display from "In Stock" → "Allocated" / "Excess"
+3. Progress bar now: `allocated / totalNeeded * 100%`
+4. Shows both allocated (for this order) and excess (for following orders)
+
+**File**: `components/features/production-tab.tsx`
+
+1. Added `handleApplyInventory()` handler — calls endpoint and reloads
+2. Updated `ProductionOrderCard` to pass `onApplyInventory`
+3. Aggregated totals now sum allocations (not inventory)
+4. Updated display: "Stock" label → "Alloc" (allocated total)
+
+**File**: `lib/api-client.ts`
+
+Added:
+```typescript
+export const applyInventoryToOrder = (data: { orderId: string }) =>
+  post('/production/apply-inventory', data);
+```
+
+**File**: `lib/api-bridge.ts`
+
+Added bridge mapping for `applyInventoryToOrder`
+
+#### Localization (i18n)
+
+**File**: `lib/i18n.tsx`
+
+Added 7 new translation keys × 3 languages (EN/SQ/MK):
+- `production.applyInventory`: "Apply Inventory"
+- `production.allocated`: "Allocated"
+- `production.excess`: "Excess"
+- `production.noExcess`: "No excess available"
+- `production.applySuccess`: "Inventory applied successfully"
+- `production.applyFailed`: "Failed to apply inventory"
+- Contains all translations for Albanian (SQ) and Macedonian (MK)
+
+### Inventory Tab Behavior
+
+**No changes to Inventory tab display**. It continues showing:
+- Element name, image, current stock (= Inventory.totalAmount)
+- This is the actual physical count — unaffected by allocations
+- When user adds inventory here, it immediately shows as `excessAvailable` for next order to allocate
+
+### Test Scenarios Verified
+
+#### Scenario 1: 80% Fill, No Excess
+- 10 orders, each needs 100 elements, inventory = 80
+- Order 1: User clicks "Apply Inventory" → 80 allocated, remaining = 20 (80% progress)
+- Order 2-10: Excess = 0 (80 - 80 = 0), button hidden/disabled
+- **Result**: No inventory left for subsequent orders ✓
+
+#### Scenario 2: Excess for Next Order
+- 10 orders, each needs 100 elements, inventory = 150
+- Order 1: Apply → 100 allocated, remaining = 0, excess = 50 (150 - 100)
+- Order 2: Apply → 50 allocated, remaining = 50 (50% progress), excess = 0 (150 - 100 - 50)
+- Order 3-10: Excess = 0, button hidden
+- **Result**: Proper sequential allocation with visible excess tracking ✓
+
+#### Scenario 3: Stock Applied Mid-Allocation
+- Order 1 has 100 elements allocated (needs 150 for product)
+- User applies 60 boxes of stock manually (reduces need to 30 elements)
+- Allocation automatically trimmed: 100 → 30
+- 70 elements freed for Order 2's excess ✓
+
+### Files Modified (Phase 18)
+
+| File | Change |
+|------|--------|
+| `prisma/schema.prisma` | Added `InventoryAllocation` model + Order/Element relations |
+| `apps/api/prisma/schema.prisma` | Same schema addition |
+| `apps/api/src/production/production.service.ts` | Virtual-only allocation, excess calculation fix, new endpoint |
+| `apps/api/src/production/production.controller.ts` | Added POST `/production/apply-inventory` |
+| `apps/api/src/stock/stock.service.ts` | Added allocation trimming when stock applied |
+| `types/ipc.ts` | Updated `ProductionElementGroup` DTOs, added `applyInventoryToOrder` |
+| `packages/shared/src/dto/production.dto.ts` | Updated `ProductionElementGroup`, added `ApplyInventoryResponse` |
+| `components/production-order-card.tsx` | Added "Apply Inventory" button, updated display (allocated/excess) |
+| `components/features/production-tab.tsx` | Added `handleApplyInventory` handler, updated aggregates |
+| `lib/api-client.ts` | Added `applyInventoryToOrder()` |
+| `lib/api-bridge.ts` | Added bridge mapping |
+| `lib/i18n.tsx` | Added 7 keys × 3 languages |
+
+**Build Status**: ✅ Next.js build passed, NestJS TypeScript check passed, all changes verified
+
+---
+
 ## Release: v0.2.9 — 2026-02-11
 - **Action**: Production tab now shows remaining based on element inventory
 - **Commit**: feat(production): calculate remaining from inventory for real-time production status
