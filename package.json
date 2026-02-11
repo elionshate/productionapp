@@ -1,6 +1,6 @@
 {
   "name": "productionapp",
-  "version": "0.2.7",
+  "version": "0.2.7.1",
   "private": true,
   "main": "dist/electron/main/index.js",
   "scripts": {
