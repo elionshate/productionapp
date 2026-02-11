@@ -44,14 +44,10 @@
       {
         "target": "nsis",
         "arch": ["x64"]
-      },
-      {
-        "target": "nsis-web",
-        "arch": ["x64"]
       }
     ],
     "icon": "public/icon.ico",
-    "artifactName": "${productName}-${version}.${ext}",
+    "artifactName": "${productName}-Setup-${version}.${ext}",
     "forceCodeSigning": false,
     "certificateFile": "code-signing.pfx"
   },
@@ -79,5 +75,6 @@
     "target": ["AppImage"],
     "icon": "public/icon.png",
     "category": "Office"
-  }
+  },
+  "generateUpdatesFilesForAllChannels": true
 }
