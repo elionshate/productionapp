@@ -40,14 +40,28 @@ async function request<T>(
   path: string,
   body?: unknown,
 ): Promise<ApiResponse<T>> {
-  const baseUrl = await getBaseUrl();
-  const res = await fetch(`${baseUrl}${path}`, {
-    method,
-    headers: body ? { 'Content-Type': 'application/json' } : undefined,
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  const json = await res.json();
-  return json as ApiResponse<T>;
+  try {
+    const baseUrl = await getBaseUrl();
+    const res = await fetch(`${baseUrl}${path}`, {
+      method,
+      headers: body ? { 'Content-Type': 'application/json' } : undefined,
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    if (!res.ok) {
+      // Try to parse error body, fall back to status text
+      try {
+        const errJson = await res.json();
+        return { success: false, error: errJson?.error || errJson?.message || `HTTP ${res.status}: ${res.statusText}` };
+      } catch {
+        return { success: false, error: `HTTP ${res.status}: ${res.statusText}` };
+      }
+    }
+    const json = await res.json();
+    return json as ApiResponse<T>;
+  } catch (err) {
+    // Network failures, DNS errors, connection refused, non-JSON responses
+    return { success: false, error: err instanceof Error ? err.message : 'Network request failed' };
+  }
 }
 
 function get<T>(path: string) {

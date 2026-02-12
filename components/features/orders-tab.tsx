@@ -116,11 +116,9 @@ export default function OrdersTab() {
         setOrders(prev => prev.filter(o => o.id !== id));
       } else {
         toast(result.error || 'Failed to delete order');
-        throw new Error(result.error);
       }
     } catch (err) {
       console.error('Failed to delete order:', err);
-      throw err;
     } finally {
       setIsProcessing(false);
     }
@@ -270,7 +268,7 @@ function BoxesInput({ value, onUpdate, className }: { value: number; onUpdate: (
     if (!isNaN(n) && n >= 1 && n !== value) {
       onUpdate(n);
     }
-  }, [debouncedLocal]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [debouncedLocal, value, onUpdate]);
 
   return (
     <input

@@ -80,13 +80,13 @@ export default function ColorPicker({ selectedColor, existingColors, onSelect }:
           type="text"
           value={customColor}
           onChange={(e) => setCustomColor(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter' && customColor.trim()) { e.preventDefault(); onSelect(customColor.trim()); setCustomColor(''); } }}
+          onKeyDown={(e) => { if (e.key === 'Enter' && customColor.trim()) { e.preventDefault(); const c = customColor.trim(); onSelect(c.charAt(0).toUpperCase() + c.slice(1)); setCustomColor(''); } }}
           placeholder="Custom color..."
           className="flex-1 rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-xs text-zinc-900 placeholder-zinc-400 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder-zinc-500"
         />
         <button
           type="button"
-          onClick={() => { if (customColor.trim()) { onSelect(customColor.trim()); setCustomColor(''); } }}
+          onClick={() => { if (customColor.trim()) { const c = customColor.trim(); onSelect(c.charAt(0).toUpperCase() + c.slice(1)); setCustomColor(''); } }}
           disabled={!customColor.trim()}
           className="rounded-md bg-zinc-100 px-2.5 py-1.5 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-200 disabled:opacity-40 disabled:cursor-not-allowed dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700"
         >

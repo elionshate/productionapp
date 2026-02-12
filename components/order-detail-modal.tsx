@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect } from 'react';
 import type { OrderResponse } from '../types/ipc';
 import { useI18n } from '../lib/i18n';
 
@@ -18,8 +19,16 @@ function formatDate(date: Date | string): string {
 }
 
 export default function OrderDetailModal({ isOpen, order, onClose }: OrderDetailModalProps) {
-  if (!isOpen || !order) return null;
   const { t } = useI18n();
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [isOpen, onClose]);
+
+  if (!isOpen || !order) return null;
   const statusLabels: Record<string, string> = {
     pending: t('orders.pending'),
     in_production: t('orders.inProduction'),
@@ -33,7 +42,7 @@ export default function OrderDetailModal({ isOpen, order, onClose }: OrderDetail
   ) ?? 0;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="flex w-full max-w-lg max-h-[80vh] flex-col rounded-xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-900">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-zinc-200 px-5 py-3 dark:border-zinc-700">

@@ -60,49 +60,49 @@ export class StockService {
       throw new BadRequestException('Amount must be greater than 0');
     }
 
-    // Validate order exists and is in_production
-    const order = await this.prisma.order.findUnique({ where: { id: orderId } });
-    if (!order) throw new BadRequestException('Order not found');
-    if (order.status !== 'in_production') {
-      throw new BadRequestException('Can only apply stock to orders in production');
-    }
-
-    // Find the order item
-    const orderItem = await this.prisma.orderItem.findFirst({
-      where: { orderId, productId },
-    });
-    if (!orderItem) {
-      throw new BadRequestException('Order item not found for this product');
-    }
-
-    // Check remaining needed
-    const remaining = orderItem.boxesNeeded - orderItem.boxesAssembled;
-    if (remaining <= 0) {
-      throw new BadRequestException('This product is already fully assembled for this order');
-    }
-    if (boxes > remaining) {
-      throw new BadRequestException(`Cannot apply more than remaining needed (${remaining})`);
-    }
-
-    // Check available stock
-    const stock = await this.prisma.productStock.findUnique({
-      where: { productId },
-    });
-    if (!stock || stock.stockBoxedAmount <= 0) {
-      throw new BadRequestException('No excess stock available for this product');
-    }
-    if (boxes > stock.stockBoxedAmount) {
-      throw new BadRequestException(`Not enough stock. Available: ${stock.stockBoxedAmount}`);
-    }
-
-    // Fetch product with its elements so we can recalculate requirements
+    // Fetch product definition (immutable — safe to read outside transaction)
     const product = await this.prisma.product.findUnique({
       where: { id: productId },
       include: { productElements: { include: { element: true } } },
     });
 
-    // Apply in a transaction: update stock + recalculate manufacturing requirements
-    await this.prisma.$transaction(async (tx) => {
+    // All mutable reads + writes inside single transaction to prevent TOCTOU races
+    const txResult = await this.prisma.$transaction(async (tx) => {
+      // Validate order exists and is in_production
+      const order = await tx.order.findUnique({ where: { id: orderId } });
+      if (!order) throw new BadRequestException('Order not found');
+      if (order.status !== 'in_production') {
+        throw new BadRequestException('Can only apply stock to orders in production');
+      }
+
+      // Find the order item
+      const orderItem = await tx.orderItem.findFirst({
+        where: { orderId, productId },
+      });
+      if (!orderItem) {
+        throw new BadRequestException('Order item not found for this product');
+      }
+
+      // Check remaining needed
+      const remaining = orderItem.boxesNeeded - orderItem.boxesAssembled;
+      if (remaining <= 0) {
+        throw new BadRequestException('This product is already fully assembled for this order');
+      }
+      if (boxes > remaining) {
+        throw new BadRequestException(`Cannot apply more than remaining needed (${remaining})`);
+      }
+
+      // Check available stock
+      const stock = await tx.productStock.findUnique({
+        where: { productId },
+      });
+      if (!stock || stock.stockBoxedAmount <= 0) {
+        throw new BadRequestException('No excess stock available for this product');
+      }
+      if (boxes > stock.stockBoxedAmount) {
+        throw new BadRequestException(`Not enough stock. Available: ${stock.stockBoxedAmount}`);
+      }
+
       await tx.orderItem.update({
         where: { id: orderItem.id },
         data: { boxesAssembled: { increment: boxes } },
@@ -189,14 +189,19 @@ export class StockService {
           }
         }
       }
+
+      return {
+        newBoxesAssembled: orderItem.boxesAssembled + boxes,
+        newStockAmount: stock.stockBoxedAmount - boxes,
+      };
     });
 
     return serialize({
       orderId,
       productId,
       boxesApplied: boxes,
-      newBoxesAssembled: orderItem.boxesAssembled + boxes,
-      newStockAmount: stock.stockBoxedAmount - boxes,
+      newBoxesAssembled: txResult.newBoxesAssembled,
+      newStockAmount: txResult.newStockAmount,
     });
   }
 }

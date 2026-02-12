@@ -81,6 +81,14 @@ export class AssemblyService {
       inventoryMap.set(inv.elementId, inv.totalAmount);
     }
 
+    // Load all inventory allocations — these are virtually reserved for specific orders
+    const allAllocations = await this.prisma.inventoryAllocation.findMany();
+    const totalAllocatedPerElement = new Map<string, number>();
+    for (const alloc of allAllocations) {
+      const prev = totalAllocatedPerElement.get(alloc.elementId) ?? 0;
+      totalAllocatedPerElement.set(alloc.elementId, prev + alloc.amountAllocated);
+    }
+
     // Check which products have unfinished assembly in any in_production order
     const unfinishedItems = await this.prisma.orderItem.findMany({
       where: { order: { status: 'in_production' } },
@@ -109,7 +117,10 @@ export class AssemblyService {
 
       let maxBoxes = Infinity;
       for (const pe of product.productElements) {
-        const available = inventoryMap.get(pe.elementId) ?? 0;
+        // Subtract allocated amounts — only truly unallocated inventory is available for excess
+        const globalAvailable = inventoryMap.get(pe.elementId) ?? 0;
+        const allocated = totalAllocatedPerElement.get(pe.elementId) ?? 0;
+        const available = Math.max(0, globalAvailable - allocated);
         const rawQtyPerUnit = pe.quantityNeeded;
         const qtyPerUnit = pe.element?.isDualColor ? Math.ceil(rawQtyPerUnit / 2) : rawQtyPerUnit;
         const qtyPerBox = qtyPerUnit * product.unitsPerBox;
@@ -255,20 +266,7 @@ export class AssemblyService {
       throw new BadRequestException('Amount must be greater than 0');
     }
 
-    const orderItem = await this.prisma.orderItem.findFirst({
-      where: { orderId, productId },
-    });
-    if (!orderItem) {
-      throw new BadRequestException('Order item not found');
-    }
-
-    const newTotal = orderItem.boxesAssembled + boxesAssembled;
-    if (newTotal > orderItem.boxesNeeded) {
-      throw new BadRequestException(
-        `Cannot exceed needed boxes. Max remaining: ${orderItem.boxesNeeded - orderItem.boxesAssembled}`,
-      );
-    }
-
+    // Product definition is immutable during assembly — safe to read outside transaction
     const product = await this.prisma.product.findUnique({
       where: { id: productId },
       include: { productElements: { include: { element: true } } },
@@ -277,36 +275,51 @@ export class AssemblyService {
       throw new BadRequestException('Product not found');
     }
 
-    const totalUnitsAssembled = boxesAssembled * (product.unitsPerBox ?? 1);
-
-    // Inventory guard
-    const insufficientElements: { elementName: string; color: string; required: number; available: number }[] = [];
-    for (const pe of product.productElements) {
-      const rawQty = pe.quantityNeeded * totalUnitsAssembled;
-      const deductAmount = pe.element?.isDualColor ? Math.ceil(rawQty / 2) : rawQty;
-      const inventoryRecord = await this.prisma.inventory.findUnique({
-        where: { elementId: pe.elementId },
-        include: { element: true },
+    const result = await this.prisma.$transaction(async (tx) => {
+      // Read orderItem inside transaction to prevent TOCTOU race
+      const orderItem = await tx.orderItem.findFirst({
+        where: { orderId, productId },
       });
-      const available = inventoryRecord?.totalAmount ?? 0;
-      if (available < deductAmount) {
-        insufficientElements.push({
-          elementName: inventoryRecord?.element?.uniqueName ?? pe.elementId,
-          color: inventoryRecord?.element?.color ?? 'Unknown',
-          required: deductAmount,
-          available,
-        });
+      if (!orderItem) {
+        throw new BadRequestException('Order item not found');
       }
-    }
 
-    if (insufficientElements.length > 0) {
-      const details = insufficientElements
-        .map((e) => `${e.elementName} (${e.color}): need ${e.required}, have ${e.available}`)
-        .join('\n');
-      throw new BadRequestException(`Insufficient inventory to assemble ${boxesAssembled} box(es):\n${details}`);
-    }
+      const newTotal = orderItem.boxesAssembled + boxesAssembled;
+      if (newTotal > orderItem.boxesNeeded) {
+        throw new BadRequestException(
+          `Cannot exceed needed boxes. Max remaining: ${orderItem.boxesNeeded - orderItem.boxesAssembled}`,
+        );
+      }
 
-    await this.prisma.$transaction(async (tx) => {
+      const totalUnitsAssembled = boxesAssembled * (product.unitsPerBox ?? 1);
+
+      // Inventory guard — inside transaction to prevent concurrent depletion
+      const insufficientElements: { elementName: string; color: string; required: number; available: number }[] = [];
+      for (const pe of product.productElements) {
+        const rawQty = pe.quantityNeeded * totalUnitsAssembled;
+        const deductAmount = pe.element?.isDualColor ? Math.ceil(rawQty / 2) : rawQty;
+        const inventoryRecord = await tx.inventory.findUnique({
+          where: { elementId: pe.elementId },
+          include: { element: true },
+        });
+        const available = inventoryRecord?.totalAmount ?? 0;
+        if (available < deductAmount) {
+          insufficientElements.push({
+            elementName: inventoryRecord?.element?.uniqueName ?? pe.elementId,
+            color: inventoryRecord?.element?.color ?? 'Unknown',
+            required: deductAmount,
+            available,
+          });
+        }
+      }
+
+      if (insufficientElements.length > 0) {
+        const details = insufficientElements
+          .map((e) => `${e.elementName} (${e.color}): need ${e.required}, have ${e.available}`)
+          .join('\n');
+        throw new BadRequestException(`Insufficient inventory to assemble ${boxesAssembled} box(es):\n${details}`);
+      }
+
       await tx.orderItem.update({ where: { id: orderItem.id }, data: { boxesAssembled: newTotal } });
 
       // NOTE: Do NOT update productStock here — order-bound assembly should only
@@ -342,8 +355,10 @@ export class AssemblyService {
           },
         });
       }
+
+      return { boxesAssembled: newTotal, remaining: orderItem.boxesNeeded - newTotal };
     });
 
-    return { boxesAssembled: newTotal, remaining: orderItem.boxesNeeded - newTotal };
+    return result;
   }
 }

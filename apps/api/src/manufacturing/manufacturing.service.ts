@@ -84,21 +84,22 @@ export class ManufacturingService {
       return { manufacturingOrderId, elementId: pe.elementId, quantityNeeded, totalWeightGrams };
     });
 
-    const requirements = await Promise.all(
-      requirementsData.map((req) =>
-        this.prisma.materialRequirement.upsert({
-          where: {
-            manufacturingOrderId_elementId: {
-              manufacturingOrderId: req.manufacturingOrderId,
-              elementId: req.elementId,
-            },
+    // Sequential upserts to avoid deadlock risk from parallel writes on same table
+    const requirements = [];
+    for (const req of requirementsData) {
+      const result = await this.prisma.materialRequirement.upsert({
+        where: {
+          manufacturingOrderId_elementId: {
+            manufacturingOrderId: req.manufacturingOrderId,
+            elementId: req.elementId,
           },
-          create: req,
-          update: { quantityNeeded: req.quantityNeeded, totalWeightGrams: req.totalWeightGrams },
-          include: { element: true },
-        }),
-      ),
-    );
+        },
+        create: req,
+        update: { quantityNeeded: req.quantityNeeded, totalWeightGrams: req.totalWeightGrams },
+        include: { element: true },
+      });
+      requirements.push(result);
+    }
 
     return serialize(requirements);
   }

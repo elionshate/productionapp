@@ -48,8 +48,10 @@ export class RawMaterialsService {
         `Cannot delete: ${elementCount} element(s) and ${productCount} product(s) still reference this material.`,
       );
     }
-    await this.prisma.rawMaterialTransaction.deleteMany({ where: { rawMaterialId: id } });
-    await this.prisma.rawMaterial.delete({ where: { id } });
+    await this.prisma.$transaction(async (tx) => {
+      await tx.rawMaterialTransaction.deleteMany({ where: { rawMaterialId: id } });
+      await tx.rawMaterial.delete({ where: { id } });
+    });
     return { id };
   }
 
@@ -59,6 +61,11 @@ export class RawMaterialsService {
         where: { id: data.rawMaterialId },
         data: { stockQty: { increment: data.changeAmount } },
       });
+
+      if (material.stockQty < 0) {
+        throw new BadRequestException('Adjustment would result in negative stock');
+      }
+
       await tx.rawMaterialTransaction.create({
         data: {
           rawMaterialId: data.rawMaterialId,

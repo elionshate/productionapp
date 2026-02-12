@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, memo } from 'react';
+import { useState, useEffect, useRef, memo } from 'react';
 import type { ProductionOrderData, ProductionElementGroup } from '../types/ipc';
 import { colorNameToHex } from '../lib/utils';
 import { useI18n } from '../lib/i18n';
@@ -158,9 +158,11 @@ function ProductionElementRow({ element, orderId, onRecordProduction }: Producti
   const [allocated, setAllocated] = useState(element.allocated ?? 0);
   const [excessAvailable, setExcessAvailable] = useState(element.excessAvailable ?? 0);
   const [error, setError] = useState('');
+  const isInFlight = useRef(false);
 
-  // Sync local state with prop changes (e.g., when inventory is applied or data refreshes)
+  // Sync local state with prop changes, but skip if a submission is in-flight
   useEffect(() => {
+    if (isInFlight.current) return;
     setRemaining(element.remaining);
     setAllocated(element.allocated ?? 0);
     setExcessAvailable(element.excessAvailable ?? 0);
@@ -182,6 +184,7 @@ function ProductionElementRow({ element, orderId, onRecordProduction }: Producti
 
     setError('');
     setIsSubmitting(true);
+    isInFlight.current = true;
 
     try {
       const newRemaining = await onRecordProduction(orderId, element.elementId, amount);
@@ -197,6 +200,7 @@ function ProductionElementRow({ element, orderId, onRecordProduction }: Producti
       setError('Failed to record');
     } finally {
       setIsSubmitting(false);
+      isInFlight.current = false;
     }
   }
 

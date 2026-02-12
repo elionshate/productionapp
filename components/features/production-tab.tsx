@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import ProductionOrderCard from '../production-order-card';
 import type { ProductionOrderData } from '../../types/ipc';
 import { colorNameToHex } from '../../lib/utils';
@@ -37,7 +37,7 @@ export default function ProductionTab() {
     }
   }
 
-  async function handleRecordProduction(orderId: string, elementId: string, amount: number): Promise<number | null> {
+  const handleRecordProduction = useCallback(async (orderId: string, elementId: string, amount: number): Promise<number | null> => {
     if (!window.electron) return null;
     try {
       const result = await window.electron.recordProduction({ orderId, elementId, amountProduced: amount });
@@ -52,9 +52,9 @@ export default function ProductionTab() {
       console.error('Failed to record production:', err);
       return null;
     }
-  }
+  }, []);
 
-  async function handleApplyInventory(orderId: string): Promise<void> {
+  const handleApplyInventory = useCallback(async (orderId: string): Promise<void> => {
     if (!window.electron) return;
     try {
       const result = await window.electron.applyInventoryToOrder({ orderId });
@@ -65,11 +65,11 @@ export default function ProductionTab() {
     } catch (err) {
       console.error('Failed to apply inventory:', err);
     }
-  }
+  }, []);
 
-  async function handlePrintAssembly(orderId: string) {
+  const handlePrintAssembly = useCallback(async (orderId: string) => {
     await printAssemblySheet(orderId);
-  }
+  }, []);
 
   function handlePrintProduction(mode: 'orders' | 'totals', orderId?: string) {
     function buildPivotTable(

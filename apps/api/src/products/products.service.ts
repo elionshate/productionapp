@@ -99,6 +99,7 @@ export class ProductsService {
         unitsPerAssembly: source.unitsPerAssembly,
         unitsPerBox: source.unitsPerBox,
         imageUrl: source.imageUrl,
+        boxRawMaterialId: source.boxRawMaterialId,
         productElements: {
           create: source.productElements.map((pe) => ({
             elementId: pe.elementId,
@@ -125,17 +126,78 @@ export class ProductsService {
   }
 
   async removeElement(id: string) {
+    // Fetch the product element before deleting to know which product/element is affected
+    const pe = await this.prisma.productElement.findUnique({
+      where: { id },
+      select: { productId: true, elementId: true },
+    });
+
     await this.prisma.productElement.delete({ where: { id } });
+
+    // Recalculate active manufacturing requirements for in-production orders
+    if (pe) {
+      const activeMfgOrders = await this.prisma.manufacturingOrder.findMany({
+        where: {
+          productId: pe.productId,
+          order: { status: 'in_production' },
+        },
+        select: { id: true },
+      });
+
+      if (activeMfgOrders.length > 0) {
+        const mfgIds = activeMfgOrders.map(m => m.id);
+        // Delete requirements for this element from active manufacturing orders
+        await this.prisma.materialRequirement.deleteMany({
+          where: {
+            manufacturingOrderId: { in: mfgIds },
+            elementId: pe.elementId,
+          },
+        });
+      }
+    }
+
     return { id };
   }
 
   async delete(id: string) {
     await this.prisma.$transaction(async (tx) => {
+      // Collect affected orders before deleting, to clean up allocations
+      const affectedItems = await tx.orderItem.findMany({
+        where: { productId: id },
+        select: { orderId: true },
+      });
+      const affectedOrderIds = [...new Set(affectedItems.map(i => i.orderId))];
+
       await tx.materialRequirement.deleteMany({ where: { manufacturingOrder: { productId: id } } });
       await tx.manufacturingOrder.deleteMany({ where: { productId: id } });
       await tx.orderItem.deleteMany({ where: { productId: id } });
       await tx.productStock.deleteMany({ where: { productId: id } });
       await tx.product.delete({ where: { id } });
+
+      // Clean up orphaned/over-sized allocations for affected orders
+      for (const orderId of affectedOrderIds) {
+        const remainingReqs = await tx.materialRequirement.findMany({
+          where: { manufacturingOrder: { orderId } },
+        });
+        const stillNeeded = new Map<string, number>();
+        for (const req of remainingReqs) {
+          const cur = stillNeeded.get(req.elementId) ?? 0;
+          stillNeeded.set(req.elementId, cur + req.quantityNeeded);
+        }
+
+        const allocations = await tx.inventoryAllocation.findMany({ where: { orderId } });
+        for (const alloc of allocations) {
+          const needed = stillNeeded.get(alloc.elementId) ?? 0;
+          if (needed <= 0) {
+            await tx.inventoryAllocation.delete({ where: { id: alloc.id } });
+          } else if (alloc.amountAllocated > needed) {
+            await tx.inventoryAllocation.update({
+              where: { id: alloc.id },
+              data: { amountAllocated: needed },
+            });
+          }
+        }
+      }
     });
     return { id };
   }

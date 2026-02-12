@@ -18,7 +18,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   /** Listen for auto-update status messages */
   onUpdateStatus: (callback: (status: unknown) => void) => {
-    ipcRenderer.on('update-status', (_event, status) => callback(status));
+    const handler = (_event: Electron.IpcRendererEvent, status: unknown) => callback(status);
+    ipcRenderer.on('update-status', handler);
+    return () => { ipcRenderer.removeListener('update-status', handler); };
   },
 
   /** Quit app and install pending update */

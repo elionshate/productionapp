@@ -14,6 +14,12 @@ export class ElementsService {
     return serialize(elements);
   }
 
+  /** Capitalize the first letter of a string (for consistent color/label storage) */
+  private capitalize(s: string): string {
+    if (!s) return s;
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  }
+
   async create(data: {
     uniqueName: string;
     label?: string;
@@ -28,9 +34,9 @@ export class ElementsService {
     const element = await this.prisma.element.create({
       data: {
         uniqueName: data.uniqueName,
-        label: data.label ?? '',
-        color: data.color,
-        color2: data.color2 ?? null,
+        label: data.label ? this.capitalize(data.label.trim()) : '',
+        color: this.capitalize(data.color.trim()),
+        color2: data.color2 ? this.capitalize(data.color2.trim()) : null,
         isDualColor: data.isDualColor ?? false,
         material: data.material,
         weightGrams: data.weightGrams,
@@ -62,9 +68,9 @@ export class ElementsService {
     // Build update payload with only defined fields
     const updateData: Record<string, unknown> = {};
     if (data.uniqueName !== undefined) updateData.uniqueName = data.uniqueName;
-    if (data.label !== undefined) updateData.label = data.label;
-    if (data.color !== undefined) updateData.color = data.color;
-    if (data.color2 !== undefined) updateData.color2 = data.color2;
+    if (data.label !== undefined) updateData.label = data.label ? this.capitalize(data.label.trim()) : data.label;
+    if (data.color !== undefined) updateData.color = this.capitalize(data.color.trim());
+    if (data.color2 !== undefined) updateData.color2 = data.color2 ? this.capitalize(data.color2.trim()) : data.color2;
     if (data.isDualColor !== undefined) updateData.isDualColor = data.isDualColor;
     if (data.material !== undefined) updateData.material = data.material;
     if (data.rawMaterialId !== undefined) updateData.rawMaterialId = data.rawMaterialId;
@@ -91,6 +97,7 @@ export class ElementsService {
       );
     }
     await this.prisma.$transaction(async (tx) => {
+      await tx.inventoryAllocation.deleteMany({ where: { elementId: id } });
       await tx.inventoryTransaction.deleteMany({ where: { elementId: id } });
       await tx.inventory.deleteMany({ where: { elementId: id } });
       await tx.materialRequirement.deleteMany({ where: { elementId: id } });

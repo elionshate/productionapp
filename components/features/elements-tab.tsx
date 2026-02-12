@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, memo } from 'react';
+import { useState, useEffect, useMemo, useCallback, memo } from 'react';
 import type { ElementResponse, RawMaterialResponse } from '../../types/ipc';
 import { colorNameToHex } from '../../lib/utils';
 import { useI18n } from '../../lib/i18n';
@@ -42,7 +42,7 @@ export default function ElementsTab() {
     loadElements(true);
   }, []);
 
-  async function loadElements(initial = false) {
+  const loadElements = useCallback(async function loadElements(initial = false) {
     if (!window.electron) { setIsLoadingElements(false); return; }
     if (initial) setIsLoadingElements(true);
     try {
@@ -53,7 +53,7 @@ export default function ElementsTab() {
     } finally {
       if (initial) setIsLoadingElements(false);
     }
-  }
+  }, []);
 
   async function handleDeleteElement(id: string) {
     if (!window.electron || isProcessing) return;

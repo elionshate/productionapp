@@ -2,24 +2,9 @@
  * Global Type Definitions
  * 
  * Place shared TypeScript types and interfaces here.
+ * Note: ElectronAPI types are defined in types/ipc.ts (window.electron).
+ * Native Electron preload API (window.electronAPI) is typed inline in preload/index.ts.
  */
-
-// Electron API types (for window.electronAPI)
-export interface ElectronAPI {
-  ping: () => Promise<string>;
-  // db: {
-  //   query: (sql: string, params: any[]) => Promise<any>;
-  //   create: (model: string, data: any) => Promise<any>;
-  //   update: (model: string, id: string, data: any) => Promise<any>;
-  //   delete: (model: string, id: string) => Promise<any>;
-  // };
-}
-
-declare global {
-  interface Window {
-    electronAPI?: ElectronAPI;
-  }
-}
 
 // Common entity types
 export type ID = string; // CUID/UUID

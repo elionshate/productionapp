@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, memo } from 'react';
+import { useState, useEffect, useCallback, useMemo, memo } from 'react';
 import type { StockOrderData, ProductStockResponse } from '../../types/ipc';
 import { useI18n } from '../../lib/i18n';
 import { toast } from '../ui/toast';
@@ -44,11 +44,14 @@ export default function StockTab() {
     loadExcessStock(true);
   }, [loadStockOrders, loadExcessStock]);
 
-  // Build a map of productId → available excess stock for quick lookup
-  const stockMap = new Map<string, number>();
-  for (const s of excessStock) {
-    stockMap.set(s.productId, s.stockBoxedAmount);
-  }
+  // Build a map of productId → available excess stock for quick lookup (memoized)
+  const stockMap = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const s of excessStock) {
+      map.set(s.productId, s.stockBoxedAmount);
+    }
+    return map;
+  }, [excessStock]);
 
   async function handleShipOrder(orderId: string) {
     if (!window.electron) return;

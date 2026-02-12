@@ -23,15 +23,39 @@ export class ProductionService {
       orderBy: { createdAt: 'asc' },
     });
 
-    // Fetch all inventory (global pool — physical count, never changed by allocation)
-    const inventoryRecords = await this.prisma.inventory.findMany();
+    // Collect all element IDs referenced by manufacturing orders in these production orders
+    const relevantElementIds = new Set<string>();
+    const relevantOrderIds = orders.map(o => o.id);
+    for (const order of orders) {
+      for (const mfgOrder of order.manufacturingOrders) {
+        for (const req of mfgOrder.requirements) {
+          relevantElementIds.add(req.elementId);
+        }
+      }
+      // Also collect from product elements for orders that may need MO generation
+      for (const item of order.orderItems) {
+        if (item.product?.productElements) {
+          for (const pe of item.product.productElements) {
+            relevantElementIds.add(pe.elementId);
+          }
+        }
+      }
+    }
+    const elementIdArray = Array.from(relevantElementIds);
+
+    // Fetch only relevant inventory (scoped to elements in production)
+    const inventoryRecords = await this.prisma.inventory.findMany({
+      where: elementIdArray.length > 0 ? { elementId: { in: elementIdArray } } : undefined,
+    });
     const inventoryMap = new Map<string, number>();
     for (const inv of inventoryRecords) {
       inventoryMap.set(inv.elementId, inv.totalAmount);
     }
 
-    // Fetch all allocations (manual inventory assignments per order)
-    const allocations = await this.prisma.inventoryAllocation.findMany();
+    // Fetch only relevant allocations (scoped to in-production orders)
+    const allocations = await this.prisma.inventoryAllocation.findMany({
+      where: relevantOrderIds.length > 0 ? { orderId: { in: relevantOrderIds } } : undefined,
+    });
     // Map: orderId -> elementId -> amountAllocated
     const allocationMap = new Map<string, Map<string, number>>();
     // Also track total allocations per element across ALL orders (for excess calculation)
@@ -45,31 +69,17 @@ export class ProductionService {
       totalAllocatedPerElement.set(alloc.elementId, prev + alloc.amountAllocated);
     }
 
-    // Retroactive fix: auto-generate or regenerate manufacturing orders
-    // Case 1: No manufacturing orders exist at all
-    // Case 2: Manufacturing orders exist but have NO requirements (stale — product elements were linked after order creation)
+    // Retroactive fix: auto-generate manufacturing orders for orders that have NONE.
+    // Only triggers when an order has items with elements but zero manufacturing orders.
+    // IMPORTANT: Never delete existing manufacturing orders here — that would wipe quantityProduced progress.
     for (const order of orders) {
-      const hasRequirements = order.manufacturingOrders.some(m => m.requirements.length > 0);
+      const hasMfgOrders = order.manufacturingOrders.length > 0;
       const hasItemsWithElements = order.orderItems.some(item =>
         item.product?.productElements && item.product.productElements.length > 0
       );
 
-      const needsRegeneration =
-        order.orderItems.length > 0 &&
-        hasItemsWithElements &&
-        !hasRequirements;
-
-      if (needsRegeneration) {
-        // Delete stale manufacturing orders (empty requirement sets)
-        if (order.manufacturingOrders.length > 0) {
-          await this.prisma.$transaction(async (tx) => {
-            for (const mfg of order.manufacturingOrders) {
-              await tx.materialRequirement.deleteMany({ where: { manufacturingOrderId: mfg.id } });
-            }
-            await tx.manufacturingOrder.deleteMany({ where: { orderId: order.id } });
-          });
-        }
-        // Regenerate with current product element composition
+      // Only generate if there are NO manufacturing orders at all (never regenerate/delete existing ones)
+      if (!hasMfgOrders && order.orderItems.length > 0 && hasItemsWithElements) {
         await this.prisma.$transaction(async (tx) => {
           await generateManufacturingOrders(tx, order.id, order.orderItems);
         });
@@ -247,22 +257,23 @@ export class ProductionService {
       throw new BadRequestException('No material requirements found for this element in this order');
     }
 
-    // Distribute produced amount across requirements
-    let remainingToDistribute = amountProduced;
-    for (const req of requirements) {
-      const canProduce = req.quantityNeeded - req.quantityProduced;
-      if (canProduce <= 0) continue;
-      const toApply = Math.min(remainingToDistribute, canProduce);
-      await this.prisma.materialRequirement.update({
-        where: { id: req.id },
-        data: { quantityProduced: { increment: toApply } },
-      });
-      remainingToDistribute -= toApply;
-      if (remainingToDistribute <= 0) break;
-    }
-
-    // Add to inventory + deduct raw materials
+    // ATOMIC: distribute production + update inventory + deduct raw materials in ONE transaction
     await this.prisma.$transaction(async (tx) => {
+      // 1. Distribute produced amount across requirements
+      let remainingToDistribute = amountProduced;
+      for (const req of requirements) {
+        const canProduce = req.quantityNeeded - req.quantityProduced;
+        if (canProduce <= 0) continue;
+        const toApply = Math.min(remainingToDistribute, canProduce);
+        await tx.materialRequirement.update({
+          where: { id: req.id },
+          data: { quantityProduced: { increment: toApply } },
+        });
+        remainingToDistribute -= toApply;
+        if (remainingToDistribute <= 0) break;
+      }
+
+      // 2. Add to inventory
       await tx.inventoryTransaction.create({
         data: { elementId, changeAmount: amountProduced, reason: 'Production for Order' },
       });
@@ -272,6 +283,7 @@ export class ProductionService {
         update: { totalAmount: { increment: amountProduced } },
       });
 
+      // 3. Deduct raw materials
       const element = await tx.element.findUnique({
         where: { id: elementId },
         include: { rawMaterial: true },
@@ -279,9 +291,17 @@ export class ProductionService {
       if (element?.rawMaterialId && element.rawMaterial) {
         const weightG = Number(element.weightGrams);
         const totalGrams = amountProduced * weightG;
-        // Convert grams to the raw material's storage unit
         const unit = element.rawMaterial.unit;
         const deductAmount = unit === 'kg' ? totalGrams / 1000 : totalGrams;
+
+        // Guard against negative stock
+        const currentMaterial = await tx.rawMaterial.findUnique({ where: { id: element.rawMaterialId } });
+        if (!currentMaterial || currentMaterial.stockQty < deductAmount) {
+          throw new BadRequestException(
+            `Insufficient raw material: ${element.rawMaterial.name}. Need ${deductAmount.toFixed(2)} ${unit}, have ${currentMaterial?.stockQty?.toFixed(2) ?? 0} ${unit}`,
+          );
+        }
+
         await tx.rawMaterial.update({
           where: { id: element.rawMaterialId },
           data: { stockQty: { decrement: deductAmount } },
@@ -319,7 +339,8 @@ export class ProductionService {
   }
 
   /**
-   * Check if an order is complete by verifying all elements are fully allocated
+   * Check if an order is complete by verifying all elements are fully allocated.
+   * Uses a single batch query instead of N+1 individual queries.
    */
   private async checkOrderComplete(orderId: string): Promise<boolean> {
     const allReqs = await this.prisma.materialRequirement.findMany({
@@ -333,12 +354,20 @@ export class ProductionService {
       elementNeeds.set(req.elementId, current + req.quantityNeeded);
     }
 
-    // Check allocations for each element
+    if (elementNeeds.size === 0) return true;
+
+    // Batch fetch all allocations for this order in one query (fixes N+1)
+    const allocations = await this.prisma.inventoryAllocation.findMany({
+      where: { orderId, elementId: { in: Array.from(elementNeeds.keys()) } },
+    });
+    const allocMap = new Map<string, number>();
+    for (const alloc of allocations) {
+      allocMap.set(alloc.elementId, alloc.amountAllocated);
+    }
+
+    // Check each element need against its allocation
     for (const [elementId, needed] of elementNeeds) {
-      const allocation = await this.prisma.inventoryAllocation.findUnique({
-        where: { orderId_elementId: { orderId, elementId } },
-      });
-      const allocated = allocation?.amountAllocated ?? 0;
+      const allocated = allocMap.get(elementId) ?? 0;
       if (allocated < needed) {
         return false;
       }

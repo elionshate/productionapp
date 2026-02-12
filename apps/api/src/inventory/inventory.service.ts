@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma-db/prisma.service';
 import { serialize } from '../common/serialize.util';
 
@@ -44,6 +44,10 @@ export class InventoryService {
         include: { element: true },
       });
 
+      if (inventory.totalAmount < 0) {
+        throw new BadRequestException('Adjustment would result in negative inventory');
+      }
+
       return inventory;
     });
 
@@ -63,6 +67,9 @@ export class InventoryService {
       if (!inv) {
         throw new NotFoundException('Inventory record not found');
       }
+
+      // Delete related inventory allocations for this element
+      await tx.inventoryAllocation.deleteMany({ where: { elementId: inv.elementId } });
 
       // Delete related inventory transactions for this element
       await tx.inventoryTransaction.deleteMany({ where: { elementId: inv.elementId } });

@@ -142,45 +142,33 @@ export class OrdersService {
       }
     }
 
-    const order = await this.prisma.order.update({
-      where: { id },
-      data: {
-        status: data.status,
-        notes: data.status === 'in_production' ? (data.notes ?? null) : data.notes,
-        ...(data.status === 'shipped' ? { shippedAt: new Date() } : {}),
-      },
-      include: {
-        orderItems: {
-          include: {
-            product: { include: { productElements: { include: { element: true } } } },
-          },
-        },
-      },
-    });
-
-    if (data.status === 'in_production' && order.orderItems) {
-      // Stock is no longer auto-applied — user manually applies excess stock via the Stock tab
-      // Generate manufacturing orders for the newly-in-production order
-      const refreshedOrder = await this.prisma.order.findUnique({
+    // Atomic: status change + manufacturing order generation in single transaction
+    await this.prisma.$transaction(async (tx) => {
+      await tx.order.update({
         where: { id },
-        include: {
-          orderItems: {
-            include: {
-              product: { include: { productElements: { include: { element: true } } } },
-            },
-          },
+        data: {
+          status: data.status,
+          notes: data.status === 'in_production' ? (data.notes ?? null) : data.notes,
+          ...(data.status === 'shipped' ? { shippedAt: new Date() } : {}),
         },
       });
-      if (refreshedOrder?.orderItems) {
-        await this.prisma.$transaction(async (tx) => {
-          await generateManufacturingOrders(tx, id, refreshedOrder.orderItems);
-        });
-      }
-    }
 
-    // Stock deduction is no longer needed on ship since ProductStock now
-    // exclusively represents true excess stock. Manual stock-to-order application
-    // already decrements ProductStock when the user applies it.
+      if (data.status === 'in_production') {
+        const orderWithItems = await tx.order.findUnique({
+          where: { id },
+          include: {
+            orderItems: {
+              include: {
+                product: { include: { productElements: { include: { element: true } } } },
+              },
+            },
+          },
+        });
+        if (orderWithItems?.orderItems) {
+          await generateManufacturingOrders(tx, id, orderWithItems.orderItems);
+        }
+      }
+    });
 
     // Re-fetch to reflect changes
     const updatedOrder = await this.prisma.order.findUnique({

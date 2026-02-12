@@ -63,7 +63,11 @@ export default function OrderCard({ order, onShip, onStartProduction, onDelete, 
       return;
     }
     setIsShipping(true);
-    onShip?.(order.id);
+    try {
+      await onShip?.(order.id);
+    } finally {
+      setIsShipping(false);
+    }
   }
 
   async function handleDelete() {
@@ -84,7 +88,10 @@ export default function OrderCard({ order, onShip, onStartProduction, onDelete, 
   return (
     <div
       className="group relative rounded-xl border border-zinc-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900 cursor-pointer"
+      role="button"
+      tabIndex={0}
       onClick={() => onClick?.(order.id)}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick?.(order.id); } }}
     >
       {/* Top Row: Order # + Status Badge */}
       <div className="flex items-start justify-between gap-2 mb-2">

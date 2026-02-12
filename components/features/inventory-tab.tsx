@@ -20,7 +20,7 @@ export default function InventoryTab() {
   const { t } = useI18n();
 
   useEffect(() => {
-    Promise.all([loadInventory(true), loadAssemblyOrders(true), loadExcess(true), loadElements()]);
+    void Promise.all([loadInventory(true), loadAssemblyOrders(true), loadExcess(true), loadElements()]);
   }, []);
 
   async function loadInventory(initial = false) {
