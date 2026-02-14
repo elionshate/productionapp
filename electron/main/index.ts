@@ -169,6 +169,14 @@ app.whenReady().then(async () => {
       autoUpdater.autoDownload = true;
       autoUpdater.autoInstallOnAppQuit = true;
       autoUpdater.logger = console;
+      // Skip authenticode signature verification — required when builds are
+      // unsigned or signed with a self-signed certificate. Without this,
+      // electron-updater rejects updates whose cert chain doesn't terminate
+      // in a Windows-trusted root CA. The property lives on NsisUpdater
+      // (Windows runtime class) but the static type is AppUpdater.
+      if (process.platform === 'win32' && 'verifyUpdateCodeSignature' in autoUpdater) {
+        (autoUpdater as any).verifyUpdateCodeSignature = () => Promise.resolve(null);
+      }
 
       autoUpdater.on('update-available', (info) => {
         console.log('[AutoUpdater] Update available:', info.version);
