@@ -110,6 +110,25 @@ export default function InventoryTab() {
     }
   }
 
+  async function handleRemoveInventory(elementId: string, quantity: number): Promise<string | true> {
+    if (!window.electron) return 'Not available';
+    try {
+      const result = await window.electron.adjustInventory({
+        elementId,
+        changeAmount: -quantity,
+        reason: 'Manual removal',
+      });
+      if (result.success) {
+        loadInventory();
+        return true;
+      }
+      return result.error || 'Failed to remove inventory';
+    } catch (err) {
+      console.error('Failed to remove inventory:', err);
+      return 'Failed to remove inventory';
+    }
+  }
+
   async function handleRecordAssembly(orderId: string, productId: string, boxes: number): Promise<string | true> {
     if (!window.electron) return 'Not available';
     try {
@@ -180,47 +199,13 @@ export default function InventoryTab() {
         ) : (
           <div className="space-y-2">
             {inventory.map(item => (
-              <div key={item.id} className="flex items-center gap-4 rounded-xl border border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900">
-                <div className="h-12 w-12 flex-shrink-0 overflow-hidden rounded-lg bg-zinc-100 dark:bg-zinc-700">
-                  {item.element?.imageUrl ? (
-                    <img src={item.element.imageUrl} alt={item.element?.uniqueName} className="h-full w-full object-contain" />
-                  ) : (
-                    <div className="flex h-full w-full items-center justify-center text-zinc-400 dark:text-zinc-500">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                      </svg>
-                    </div>
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-base font-semibold text-zinc-900 dark:text-zinc-100 truncate">{item.element?.uniqueName ?? 'Unknown'}</p>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <div className="h-4 w-4 rounded-full border border-zinc-300 dark:border-zinc-600 flex-shrink-0" style={{ backgroundColor: colorNameToHex(item.element?.color || '') }} title={item.element?.color} />
-                    <span className="text-sm text-zinc-500 dark:text-zinc-400">{item.element?.color ?? 'Unknown'}</span>
-                    {item.element?.color2 && (
-                      <>
-                        <div className="h-4 w-4 rounded-full border border-zinc-300 dark:border-zinc-600 flex-shrink-0" style={{ backgroundColor: colorNameToHex(item.element.color2) }} title={item.element.color2} />
-                        <span className="text-sm text-zinc-500 dark:text-zinc-400">{item.element.color2}</span>
-                      </>
-                    )}
-                    <span className="text-xs text-zinc-400">·</span>
-                    <span className="text-xs text-zinc-400">{item.element?.material ?? ''}</span>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <p className="text-3xl font-bold text-zinc-900 dark:text-zinc-100 tabular-nums">{item.totalAmount}</p>
-                  <p className="text-xs text-zinc-400">{t('common.inStock')}</p>
-                </div>
-                <button
-                  onClick={() => handleDeleteInventory(item.id)}
-                  className="flex-shrink-0 rounded-lg p-1.5 text-zinc-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30 dark:hover:text-red-400 transition-colors"
-                  title="Delete inventory (testing)"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                  </svg>
-                </button>
-              </div>
+              <InventoryItemRow
+                key={item.id}
+                item={item}
+                onDelete={handleDeleteInventory}
+                onRemove={handleRemoveInventory}
+                isProcessing={isProcessing}
+              />
             ))}
           </div>
         )}
@@ -277,6 +262,152 @@ export default function InventoryTab() {
     </div>
   );
 }
+
+// ── Inventory Item Row ──────────────────────────────────────
+
+const InventoryItemRow = memo(function InventoryItemRow({
+  item,
+  onDelete,
+  onRemove,
+  isProcessing,
+}: {
+  item: InventoryResponse;
+  onDelete: (id: string) => void;
+  onRemove: (elementId: string, quantity: number) => Promise<string | true>;
+  isProcessing: boolean;
+}) {
+  const [showRemove, setShowRemove] = useState(false);
+  const [removeQty, setRemoveQty] = useState('');
+  const [removeError, setRemoveError] = useState('');
+  const [isRemoving, setIsRemoving] = useState(false);
+  const { t } = useI18n();
+
+  async function handleRemoveSubmit() {
+    if (!item.element) return;
+    const qty = parseInt(removeQty, 10);
+    if (isNaN(qty) || qty <= 0) {
+      setRemoveError(t('inventory.validQuantity'));
+      return;
+    }
+    if (qty > item.totalAmount) {
+      setRemoveError(`${t('inventory.maxRemove')}: ${item.totalAmount}`);
+      return;
+    }
+    setRemoveError('');
+    setIsRemoving(true);
+    try {
+      const result = await onRemove(item.element.id, qty);
+      if (result === true) {
+        setRemoveQty('');
+        setShowRemove(false);
+        setRemoveError('');
+        toast(t('inventory.removeSuccess'));
+      } else {
+        setRemoveError(result);
+      }
+    } finally {
+      setIsRemoving(false);
+    }
+  }
+
+  return (
+    <div className="rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+      <div className="flex items-center gap-4 px-4 py-3">
+        <div className="h-12 w-12 flex-shrink-0 overflow-hidden rounded-lg bg-zinc-100 dark:bg-zinc-700">
+          {item.element?.imageUrl ? (
+            <img src={item.element.imageUrl} alt={item.element?.uniqueName} className="h-full w-full object-contain" />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center text-zinc-400 dark:text-zinc-500">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+              </svg>
+            </div>
+          )}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-base font-semibold text-zinc-900 dark:text-zinc-100 truncate">{item.element?.uniqueName ?? 'Unknown'}</p>
+          <div className="flex items-center gap-2 mt-0.5">
+            <div className="h-4 w-4 rounded-full border border-zinc-300 dark:border-zinc-600 flex-shrink-0" style={{ backgroundColor: colorNameToHex(item.element?.color || '') }} title={item.element?.color} />
+            <span className="text-sm text-zinc-500 dark:text-zinc-400">{item.element?.color ?? 'Unknown'}</span>
+            {item.element?.color2 && (
+              <>
+                <div className="h-4 w-4 rounded-full border border-zinc-300 dark:border-zinc-600 flex-shrink-0" style={{ backgroundColor: colorNameToHex(item.element.color2) }} title={item.element.color2} />
+                <span className="text-sm text-zinc-500 dark:text-zinc-400">{item.element.color2}</span>
+              </>
+            )}
+            <span className="text-xs text-zinc-400">·</span>
+            <span className="text-xs text-zinc-400">{item.element?.material ?? ''}</span>
+          </div>
+        </div>
+        <div className="text-right">
+          <p className="text-3xl font-bold text-zinc-900 dark:text-zinc-100 tabular-nums">{item.totalAmount}</p>
+          <p className="text-xs text-zinc-400">{t('common.inStock')}</p>
+        </div>
+        <div className="flex flex-shrink-0 items-center gap-1">
+          {/* Remove quantity button */}
+          <button
+            onClick={() => { setShowRemove(!showRemove); setRemoveQty(''); setRemoveError(''); }}
+            className={`rounded-lg p-1.5 transition-colors ${
+              showRemove
+                ? 'bg-amber-50 text-amber-600 dark:bg-amber-950/30 dark:text-amber-400'
+                : 'text-zinc-400 hover:bg-amber-50 hover:text-amber-600 dark:hover:bg-amber-950/30 dark:hover:text-amber-400'
+            }`}
+            title={t('inventory.removeQuantity')}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M20 12H4" />
+            </svg>
+          </button>
+          {/* Delete entire record button */}
+          <button
+            onClick={() => onDelete(item.id)}
+            disabled={isProcessing}
+            className="rounded-lg p-1.5 text-zinc-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30 dark:hover:text-red-400 transition-colors disabled:opacity-50"
+            title={t('inventory.deleteConfirm')}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      {/* Inline removal input */}
+      {showRemove && (
+        <div className="border-t border-zinc-100 dark:border-zinc-800 px-4 py-3">
+          <div className="flex items-center gap-2">
+            <label className="text-xs font-medium text-amber-700 dark:text-amber-400 shrink-0">{t('inventory.removeQuantity')}:</label>
+            <input
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              value={removeQty}
+              onChange={(e) => { setRemoveQty(e.target.value.replace(/[^0-9]/g, '')); setRemoveError(''); }}
+              onKeyDown={(e) => e.key === 'Enter' && handleRemoveSubmit()}
+              placeholder={`${t('inventory.maxRemove')}: ${item.totalAmount}`}
+              className="w-40 rounded-lg border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-900 outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+              autoFocus
+            />
+            <button
+              onClick={handleRemoveSubmit}
+              disabled={isRemoving || !removeQty}
+              className="rounded-lg bg-amber-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isRemoving ? '...' : t('inventory.removeFromInventory')}
+            </button>
+            <button
+              onClick={() => { setShowRemove(false); setRemoveQty(''); setRemoveError(''); }}
+              className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-400"
+            >
+              {t('common.cancel')}
+            </button>
+          </div>
+          {removeError && <p className="mt-1.5 text-xs text-red-500">{removeError}</p>}
+        </div>
+      )}
+    </div>
+  );
+});
 
 // ── Add Inventory Modal ─────────────────────────────────────
 

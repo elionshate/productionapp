@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import type { ElementResponse } from '../types/ipc';
 import { colorNameToHex } from '../lib/utils';
 
@@ -26,6 +26,7 @@ export default function ProductElementsModal({
   const [search, setSearch] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState('');
+  const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (isOpen) {
@@ -61,6 +62,8 @@ export default function ProductElementsModal({
     }
   }
 
+  const isSearching = search.trim().length > 0;
+
   // Group elements by uniqueName, filtered by search
   const groupedElements = useMemo(() => {
     const filtered = search.trim()
@@ -81,6 +84,26 @@ export default function ProductElementsModal({
     // Sort groups alphabetically
     return [...groups.entries()].sort((a, b) => a[0].localeCompare(b[0]));
   }, [allElements, search]);
+
+  // Count selected elements per group for badge display
+  const selectedPerGroup = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const el of allElements) {
+      if (selected.has(el.id)) {
+        counts.set(el.uniqueName, (counts.get(el.uniqueName) || 0) + 1);
+      }
+    }
+    return counts;
+  }, [allElements, selected]);
+
+  const toggleGroup = useCallback((groupName: string) => {
+    setOpenGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(groupName)) next.delete(groupName);
+      else next.add(groupName);
+      return next;
+    });
+  }, []);
 
   function toggleElement(el: ElementResponse) {
     setSelected(prev => {
@@ -232,96 +255,120 @@ export default function ProductElementsModal({
               <p className="text-sm">{search ? 'No elements match your search' : 'No elements available'}</p>
             </div>
           ) : (
-            <div className="space-y-5">
-              {groupedElements.map(([groupName, elements]) => (
-                <div key={groupName}>
-                  {/* Group header */}
-                  <div className="flex items-center gap-2 mb-2">
-                    <h3 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">{groupName}</h3>
-                    <span className="text-xs text-zinc-400">({elements.length})</span>
-                  </div>
-                  {/* Elements in this group */}
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    {elements.map(el => {
-                      const isSelected = selected.has(el.id);
-                      const sel = selected.get(el.id);
-                      return (
-                        <div
-                          key={el.id}
-                          className={`relative rounded-lg border-2 p-3 cursor-pointer transition-all ${
-                            isSelected
-                              ? 'border-blue-500 bg-blue-50/50 dark:border-blue-500 dark:bg-blue-950/20 ring-1 ring-blue-500/30'
-                              : 'border-zinc-200 bg-white hover:border-zinc-300 hover:shadow-sm dark:border-zinc-700 dark:bg-zinc-800 dark:hover:border-zinc-600'
-                          }`}
-                          onClick={() => toggleElement(el)}
-                        >
-                          {/* Selection indicator */}
-                          {isSelected && (
-                            <div className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-blue-600 text-white shadow-sm z-10">
-                              <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                              </svg>
-                            </div>
-                          )}
-
-                          {/* Image */}
-                          <div className="aspect-square w-full overflow-hidden rounded-md bg-zinc-100 dark:bg-zinc-700 mb-2">
-                            {el.imageUrl ? (
-                              <img src={el.imageUrl} alt={el.uniqueName} className="h-full w-full object-contain p-1" />
-                            ) : (
-                              <div className="flex h-full w-full items-center justify-center text-zinc-300 dark:text-zinc-600">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                                </svg>
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Color swatches + info */}
-                          <div className="flex items-center gap-1.5 mb-1">
-                            <div
-                              className="h-4 w-4 rounded-full border border-zinc-300 dark:border-zinc-600 shrink-0"
-                              style={{ backgroundColor: colorNameToHex(el.color) }}
-                              title={el.color}
-                            />
-                            {el.isDualColor && el.color2 && (
+            <div className="space-y-1">
+              {groupedElements.map(([groupName, elements]) => {
+                const isOpen = isSearching || openGroups.has(groupName);
+                const groupSelectedCount = selectedPerGroup.get(groupName) || 0;
+                return (
+                  <div key={groupName} className="rounded-lg border border-zinc-200 dark:border-zinc-700 overflow-hidden">
+                    {/* Accordion header */}
+                    <button
+                      type="button"
+                      onClick={() => toggleGroup(groupName)}
+                      className="flex w-full items-center gap-2 px-4 py-3 text-left transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        className={`h-4 w-4 text-zinc-400 shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-90' : ''}`}
+                        fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                      </svg>
+                      <h3 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">{groupName}</h3>
+                      <span className="text-xs text-zinc-400">({elements.length})</span>
+                      {groupSelectedCount > 0 && (
+                        <span className="ml-auto inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-950/40 dark:text-blue-400">
+                          {groupSelectedCount} selected
+                        </span>
+                      )}
+                    </button>
+                    {/* Accordion body — only rendered when open (lazy) */}
+                    {isOpen && (
+                      <div className="border-t border-zinc-100 dark:border-zinc-800 px-4 py-3">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                          {elements.map(el => {
+                            const isSelected = selected.has(el.id);
+                            const sel = selected.get(el.id);
+                            return (
                               <div
-                                className="h-4 w-4 rounded-full border border-zinc-300 dark:border-zinc-600 shrink-0 -ml-2"
-                                style={{ backgroundColor: colorNameToHex(el.color2) }}
-                                title={el.color2}
-                              />
-                            )}
-                            <span className="text-xs text-zinc-500 dark:text-zinc-400 truncate ml-0.5">
-                              {el.color}{el.isDualColor && el.color2 ? ` + ${el.color2}` : ''}
-                            </span>
-                          </div>
+                                key={el.id}
+                                className={`relative rounded-lg border-2 p-3 cursor-pointer transition-all ${
+                                  isSelected
+                                    ? 'border-blue-500 bg-blue-50/50 dark:border-blue-500 dark:bg-blue-950/20 ring-1 ring-blue-500/30'
+                                    : 'border-zinc-200 bg-white hover:border-zinc-300 hover:shadow-sm dark:border-zinc-700 dark:bg-zinc-800 dark:hover:border-zinc-600'
+                                }`}
+                                onClick={() => toggleElement(el)}
+                              >
+                                {/* Selection indicator */}
+                                {isSelected && (
+                                  <div className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-blue-600 text-white shadow-sm z-10">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                    </svg>
+                                  </div>
+                                )}
 
-                          {el.label && (
-                            <span className="inline-block mb-1 rounded bg-purple-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">
-                              {el.label}
-                            </span>
-                          )}
-                          <p className="text-xs text-zinc-400 truncate">{el.material} · {el.weightGrams}g</p>
+                                {/* Image */}
+                                <div className="aspect-square w-full overflow-hidden rounded-md bg-zinc-100 dark:bg-zinc-700 mb-2">
+                                  {el.imageUrl ? (
+                                    <img src={el.imageUrl} alt={el.uniqueName} className="h-full w-full object-contain p-1" loading="lazy" />
+                                  ) : (
+                                    <div className="flex h-full w-full items-center justify-center text-zinc-300 dark:text-zinc-600">
+                                      <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                                      </svg>
+                                    </div>
+                                  )}
+                                </div>
 
-                          {/* Quantity input (only if selected) */}
-                          {isSelected && (
-                            <div className="mt-2 flex items-center gap-1" onClick={e => e.stopPropagation()}>
-                              <label className="text-[10px] font-medium text-blue-600 dark:text-blue-400 shrink-0">Qty:</label>
-                              <input
-                                type="number"
-                                min="1"
-                                value={sel?.quantityNeeded || 1}
-                                onChange={(e) => setQuantity(el.id, parseInt(e.target.value, 10) || 1)}
-                                className="w-full rounded border border-blue-300 bg-white px-2 py-1 text-xs text-zinc-900 outline-none focus:border-blue-500 dark:border-blue-700 dark:bg-zinc-800 dark:text-zinc-100"
-                              />
-                            </div>
-                          )}
+                                {/* Color swatches + info */}
+                                <div className="flex items-center gap-1.5 mb-1">
+                                  <div
+                                    className="h-4 w-4 rounded-full border border-zinc-300 dark:border-zinc-600 shrink-0"
+                                    style={{ backgroundColor: colorNameToHex(el.color) }}
+                                    title={el.color}
+                                  />
+                                  {el.isDualColor && el.color2 && (
+                                    <div
+                                      className="h-4 w-4 rounded-full border border-zinc-300 dark:border-zinc-600 shrink-0 -ml-2"
+                                      style={{ backgroundColor: colorNameToHex(el.color2) }}
+                                      title={el.color2}
+                                    />
+                                  )}
+                                  <span className="text-xs text-zinc-500 dark:text-zinc-400 truncate ml-0.5">
+                                    {el.color}{el.isDualColor && el.color2 ? ` + ${el.color2}` : ''}
+                                  </span>
+                                </div>
+
+                                {el.label && (
+                                  <span className="inline-block mb-1 rounded bg-purple-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">
+                                    {el.label}
+                                  </span>
+                                )}
+                                <p className="text-xs text-zinc-400 truncate">{el.material} · {el.weightGrams}g</p>
+
+                                {/* Quantity input (only if selected) */}
+                                {isSelected && (
+                                  <div className="mt-2 flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                                    <label className="text-[10px] font-medium text-blue-600 dark:text-blue-400 shrink-0">Qty:</label>
+                                    <input
+                                      type="number"
+                                      min="1"
+                                      value={sel?.quantityNeeded || 1}
+                                      onChange={(e) => setQuantity(el.id, parseInt(e.target.value, 10) || 1)}
+                                      className="w-full rounded border border-blue-300 bg-white px-2 py-1 text-xs text-zinc-900 outline-none focus:border-blue-500 dark:border-blue-700 dark:bg-zinc-800 dark:text-zinc-100"
+                                    />
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
-                      );
-                    })}
+                      </div>
+                    )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

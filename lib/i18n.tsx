@@ -152,6 +152,10 @@ type TranslationKeys = {
   'inventory.addToInventory': string;
   'inventory.selectElement': string;
   'inventory.validQuantity': string;
+  'inventory.removeQuantity': string;
+  'inventory.removeFromInventory': string;
+  'inventory.removeSuccess': string;
+  'inventory.maxRemove': string;
 
   // ── Stock Tab ──
   'stock.title': string;
@@ -332,6 +336,10 @@ const translations: Record<Language, TranslationKeys> = {
     'inventory.addToInventory': 'Add to Inventory',
     'inventory.selectElement': 'Please select an element',
     'inventory.validQuantity': 'Enter a valid quantity (≥ 1)',
+    'inventory.removeQuantity': 'Remove quantity',
+    'inventory.removeFromInventory': 'Remove',
+    'inventory.removeSuccess': 'Inventory updated successfully',
+    'inventory.maxRemove': 'Max',
 
     'stock.title': 'Stock Overview',
     'stock.subtitle': 'Completed boxes per order & excess stock',
@@ -502,6 +510,10 @@ const translations: Record<Language, TranslationKeys> = {
     'inventory.addToInventory': 'Shto në Inventar',
     'inventory.selectElement': 'Ju lutem zgjidhni një element',
     'inventory.validQuantity': 'Vendos një sasi të vlefshme (≥ 1)',
+    'inventory.removeQuantity': 'Hiq sasinë',
+    'inventory.removeFromInventory': 'Hiq',
+    'inventory.removeSuccess': 'Inventari u përditësua me sukses',
+    'inventory.maxRemove': 'Max',
 
     'stock.title': 'Pasqyra e Stokut',
     'stock.subtitle': 'Kutitë e përfunduara për porosi dhe stoku shtesë',
@@ -672,6 +684,10 @@ const translations: Record<Language, TranslationKeys> = {
     'inventory.addToInventory': 'Додај во Инвентар',
     'inventory.selectElement': 'Ве молиме изберете елемент',
     'inventory.validQuantity': 'Внесете валидна количина (≥ 1)',
+    'inventory.removeQuantity': 'Отстрани количина',
+    'inventory.removeFromInventory': 'Отстрани',
+    'inventory.removeSuccess': 'Инвентарот е успешно ажуриран',
+    'inventory.maxRemove': 'Макс',
 
     'stock.title': 'Преглед на Залиха',
     'stock.subtitle': 'Завршени кутии по нарачка и вишок залиха',
