@@ -78,12 +78,13 @@ export class RawMaterialsService {
     return serialize(result);
   }
 
-  async getTransactions(rawMaterialId?: string) {
+  async getTransactions(rawMaterialId?: string, skip = 0, take = 200) {
     const transactions = await this.prisma.rawMaterialTransaction.findMany({
       where: rawMaterialId ? { rawMaterialId } : undefined,
       include: { rawMaterial: true },
       orderBy: { createdAt: 'desc' },
-      take: 200,
+      skip,
+      take,
     });
     return serialize(transactions);
   }

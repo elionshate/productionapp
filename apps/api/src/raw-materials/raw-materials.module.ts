@@ -5,6 +5,5 @@ import { RawMaterialsController } from './raw-materials.controller';
 @Module({
   controllers: [RawMaterialsController],
   providers: [RawMaterialsService],
-  exports: [RawMaterialsService],
 })
 export class RawMaterialsModule {}

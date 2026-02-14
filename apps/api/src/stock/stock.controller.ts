@@ -1,5 +1,6 @@
 import { Controller, Get, Post, Param, Body } from '@nestjs/common';
 import { StockService } from './stock.service';
+import { ApplyStockDto } from './dto/stock.dto';
 
 @Controller('stock')
 export class StockController {
@@ -24,9 +25,7 @@ export class StockController {
   }
 
   @Post('apply-to-order')
-  async applyStockToOrder(
-    @Body() data: { orderId: string; productId: string; boxes: number },
-  ) {
+  async applyStockToOrder(@Body() data: ApplyStockDto) {
     const result = await this.stockService.applyStockToOrder(data);
     return { success: true, data: result };
   }

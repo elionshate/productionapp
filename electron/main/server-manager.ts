@@ -19,27 +19,36 @@ export class ServerManager {
   private child: ChildProcess | UtilityProcess | null = null;
   private _port: number | null = null;
   private isDev: boolean = true;
+  private _dbPath: string | null = null;
+  private _stopping: boolean = false;
+  private _onCrash: ((code: number | null) => void) | null = null;
 
   get port(): number | null {
     return this._port;
   }
 
-  /** Find a free TCP port starting from the preferred port */
+  /** Register a callback invoked if the server crashes after successful startup */
+  onCrash(callback: (code: number | null) => void): void {
+    this._onCrash = callback;
+  }
+
+  /** Find a free TCP port starting from the preferred port (iterative) */
   private findFreePort(preferred: number): Promise<number> {
     return new Promise((resolve, reject) => {
-      const server = net.createServer();
-      server.listen(preferred, '127.0.0.1', () => {
-        const addr = server.address();
-        const port = typeof addr === 'object' && addr ? addr.port : preferred;
-        server.close(() => resolve(port));
-      });
-      server.on('error', () => {
-        if (preferred < 65535) {
-          this.findFreePort(preferred + 1).then(resolve).catch(reject);
-        } else {
+      const tryPort = (port: number) => {
+        if (port > 65535) {
           reject(new Error('No available port found'));
+          return;
         }
-      });
+        const server = net.createServer();
+        server.listen(port, '127.0.0.1', () => {
+          const addr = server.address();
+          const foundPort = typeof addr === 'object' && addr ? addr.port : port;
+          server.close(() => resolve(foundPort));
+        });
+        server.on('error', () => tryPort(port + 1));
+      };
+      tryPort(preferred);
     });
   }
 
@@ -48,6 +57,7 @@ export class ServerManager {
    * Resolves with the port number once the server sends "ready" IPC message.
    */
   async start(dbPath: string): Promise<number> {
+    this._dbPath = dbPath;
     const port = await this.findFreePort(4123);
 
     const isDev = !require('electron').app.isPackaged;
@@ -156,6 +166,12 @@ export class ServerManager {
             clearInterval(pollTimer);
             console.log(`[ServerManager] Server exited with code ${code}`);
             reject(new Error(`Server exited prematurely (code ${code})`));
+          } else {
+            // Post-startup crash — notify via callback
+            if (!this._stopping && this._onCrash) {
+              console.error(`[ServerManager] Server crashed post-startup with code ${code}`);
+              this._onCrash(code);
+            }
           }
         });
         cp.on('error', (err) => {
@@ -175,33 +191,51 @@ export class ServerManager {
             clearInterval(pollTimer);
             console.log(`[ServerManager] Server exited with code ${code}`);
             reject(new Error(`Server exited prematurely (code ${code})`));
+          } else {
+            // Post-startup crash — notify via callback
+            if (!this._stopping && this._onCrash) {
+              console.error(`[ServerManager] Server crashed post-startup with code ${code}`);
+              this._onCrash(code);
+            }
           }
         });
       }
     });
   }
 
-  /** Gracefully kill the server child process */
+  /** Gracefully stop the server: SIGTERM → wait 5s → SIGKILL */
   async stop(): Promise<void> {
     if (!this.child) return;
+    this._stopping = true;
     console.log('[ServerManager] Stopping server...');
-    
+
+    // First attempt: graceful kill (SIGTERM on Unix, TerminateProcess on Windows)
     this.child.kill();
 
     await new Promise<void>((resolve) => {
-      const t = setTimeout(() => {
-        this.child?.kill();
+      const forceKillTimer = setTimeout(() => {
+        // Escalate: force kill if still alive after 5s
+        try {
+          if (this.child) {
+            console.log('[ServerManager] Force-killing server (timeout)...');
+            if (this.isDev) {
+              (this.child as ChildProcess).kill('SIGKILL');
+            } else {
+              this.child.kill();
+            }
+          }
+        } catch { /* already dead */ }
         resolve();
       }, 5000);
-      
+
       if (this.isDev) {
         (this.child! as ChildProcess).on('exit', () => {
-          clearTimeout(t);
+          clearTimeout(forceKillTimer);
           resolve();
         });
       } else {
         (this.child! as UtilityProcess).on('exit', () => {
-          clearTimeout(t);
+          clearTimeout(forceKillTimer);
           resolve();
         });
       }
@@ -209,5 +243,6 @@ export class ServerManager {
 
     this.child = null;
     this._port = null;
+    this._stopping = false;
   }
 }

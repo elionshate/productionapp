@@ -1,5 +1,11 @@
 import { Controller, Get, Post, Put, Delete, Body, Param } from '@nestjs/common';
 import { OrdersService } from './orders.service';
+import {
+  CreateOrderDto,
+  UpdateOrderDto,
+  AddOrderItemDto,
+  UpdateOrderItemDto,
+} from './dto/orders.dto';
 
 @Controller('orders')
 export class OrdersController {
@@ -24,18 +30,13 @@ export class OrdersController {
   }
 
   @Post()
-  async create(@Body() body: {
-    clientName: string;
-    status?: string;
-    notes?: string;
-    items: Array<{ productId: string; boxesNeeded: number }>;
-  }) {
+  async create(@Body() body: CreateOrderDto) {
     const data = await this.ordersService.create(body);
     return { success: true, data };
   }
 
   @Put(':id')
-  async update(@Param('id') id: string, @Body() body: { status?: string; notes?: string }) {
+  async update(@Param('id') id: string, @Body() body: UpdateOrderDto) {
     const data = await this.ordersService.update(id, body);
     return { success: true, data };
   }
@@ -43,7 +44,7 @@ export class OrdersController {
   @Post(':id/items')
   async addOrderItem(
     @Param('id') id: string,
-    @Body() body: { productId: string; boxesNeeded: number },
+    @Body() body: AddOrderItemDto,
   ) {
     const data = await this.ordersService.addOrderItem(id, body);
     return { success: true, data };
@@ -52,7 +53,7 @@ export class OrdersController {
   @Put('items/:itemId')
   async updateOrderItem(
     @Param('itemId') itemId: string,
-    @Body() body: { boxesNeeded: number },
+    @Body() body: UpdateOrderItemDto,
   ) {
     const data = await this.ordersService.updateOrderItem(itemId, body);
     return { success: true, data };

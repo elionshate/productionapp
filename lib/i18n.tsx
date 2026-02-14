@@ -202,6 +202,144 @@ type TranslationKeys = {
   'print.totalRequirements': string;
   'print.ordersInProduction': string;
   'print.labeledElements': string;
+
+  // ── Auth ──
+  'auth.startingApp': string;
+  'auth.createAccount': string;
+  'auth.signIn': string;
+  'auth.createAccountSubtitle': string;
+  'auth.signInSubtitle': string;
+  'auth.username': string;
+  'auth.usernamePlaceholder': string;
+  'auth.password': string;
+  'auth.passwordPlaceholder': string;
+  'auth.confirmPassword': string;
+  'auth.confirmPasswordPlaceholder': string;
+  'auth.pleaseWait': string;
+  'auth.alreadyHaveAccount': string;
+  'auth.needAccount': string;
+  'auth.usernameRequired': string;
+  'auth.usernameMinLength': string;
+  'auth.passwordRequired': string;
+  'auth.passwordMinLength': string;
+  'auth.passwordsNoMatch': string;
+  'auth.registrationFailed': string;
+  'auth.loginFailed': string;
+  'auth.requiresDesktop': string;
+
+  // ── Create Order ──
+  'createOrder.title': string;
+  'createOrder.clientPlaceholder': string;
+  'createOrder.initialStatus': string;
+  'createOrder.notesPlaceholder': string;
+  'createOrder.clientRequired': string;
+  'createOrder.creating': string;
+  'createOrder.create': string;
+
+  // ── Create Element ──
+  'createElement.title': string;
+  'createElement.name': string;
+  'createElement.namePlaceholder': string;
+  'createElement.labelPlaceholder': string;
+  'createElement.material': string;
+  'createElement.materialPlaceholder': string;
+  'createElement.weight': string;
+  'createElement.dualColor': string;
+  'createElement.creating': string;
+  'createElement.nameRequired': string;
+  'createElement.materialRequired': string;
+  'createElement.weightRequired': string;
+  'createElement.selectColor': string;
+  'createElement.selectSecondColor': string;
+
+  // ── Create Product ──
+  'createProduct.title': string;
+  'createProduct.serialNumber': string;
+  'createProduct.serialPlaceholder': string;
+  'createProduct.labelPlaceholder': string;
+  'createProduct.category': string;
+  'createProduct.selectCategory': string;
+  'createProduct.newCategory': string;
+  'createProduct.newCategoryPlaceholder': string;
+  'createProduct.unitsPerBox': string;
+  'createProduct.boxType': string;
+  'createProduct.noBoxDeduction': string;
+  'createProduct.imageRequired': string;
+  'createProduct.creating': string;
+  'createProduct.create': string;
+  'createProduct.serialRequired': string;
+  'createProduct.categoryRequired': string;
+  'createProduct.imageReq': string;
+  'createProduct.unitsError': string;
+
+  // ── Order Items ──
+  'orderItems.addedProducts': string;
+  'orderItems.searchPlaceholder': string;
+  'orderItems.loadingProducts': string;
+  'orderItems.noProducts': string;
+  'orderItems.noMatch': string;
+  'orderItems.boxesOf': string;
+  'orderItems.adding': string;
+
+  // ── Product Elements ──
+  'productElements.title': string;
+  'productElements.chooseFor': string;
+  'productElements.searchPlaceholder': string;
+  'productElements.noMatch': string;
+  'productElements.noElements': string;
+  'productElements.qty': string;
+  'productElements.saving': string;
+  'productElements.saveElements': string;
+
+  // ── Product Card ──
+  'productCard.noImage': string;
+  'productCard.more': string;
+  'productCard.noElements': string;
+  'productCard.sure': string;
+  'productCard.clone': string;
+
+  // ── Update Notification ──
+  'update.checkFailed': string;
+  'update.checkFailedMsg': string;
+  'update.available': string;
+  'update.availableMsg': string;
+  'update.downloading': string;
+  'update.downloadingTitle': string;
+  'update.downloaded': string;
+  'update.readyTitle': string;
+  'update.readyMsg': string;
+  'update.restartInstall': string;
+  'update.installing': string;
+  'update.later': string;
+
+  // ── Storage (extended) ──
+  'storage.subtitle': string;
+  'storage.addMaterial': string;
+  'storage.noMaterials': string;
+  'storage.noMaterialsHint': string;
+  'storage.noMatch': string;
+  'storage.noMatchHint': string;
+  'storage.unit': string;
+  'storage.currentStock': string;
+  'storage.adjustStock': string;
+  'storage.addRawMaterial': string;
+  'storage.materialPlaceholder': string;
+  'storage.unitOfMeasurement': string;
+  'storage.grams': string;
+  'storage.kilograms': string;
+  'storage.unitsLabel': string;
+  'storage.meters': string;
+  'storage.liters': string;
+  'storage.sheets': string;
+  'storage.addStock': string;
+  'storage.removeStock': string;
+  'storage.reasonPlaceholder': string;
+  'storage.newStockWillBe': string;
+  'storage.adjusting': string;
+  'storage.editRawMaterial': string;
+  'storage.materialName': string;
+  'storage.saving': string;
+  'storage.creating': string;
 };
 
 // ============================================================================
@@ -381,6 +519,135 @@ const translations: Record<Language, TranslationKeys> = {
     'print.totalRequirements': 'Total Requirements — All Orders',
     'print.ordersInProduction': 'order(s) in production',
     'print.labeledElements': 'Labeled Elements',
+
+    'auth.startingApp': 'Starting application...',
+    'auth.createAccount': 'Create Account',
+    'auth.signIn': 'Sign In',
+    'auth.createAccountSubtitle': 'Create your account to get started',
+    'auth.signInSubtitle': 'Sign in to your account',
+    'auth.username': 'Username',
+    'auth.usernamePlaceholder': 'Enter your username',
+    'auth.password': 'Password',
+    'auth.passwordPlaceholder': 'Enter your password',
+    'auth.confirmPassword': 'Confirm Password',
+    'auth.confirmPasswordPlaceholder': 'Re-enter your password',
+    'auth.pleaseWait': 'Please wait...',
+    'auth.alreadyHaveAccount': 'Already have an account?',
+    'auth.needAccount': 'Need an account?',
+    'auth.usernameRequired': 'Username is required',
+    'auth.usernameMinLength': 'Username must be at least 3 characters',
+    'auth.passwordRequired': 'Password is required',
+    'auth.passwordMinLength': 'Password must be at least 4 characters',
+    'auth.passwordsNoMatch': 'Passwords do not match',
+    'auth.registrationFailed': 'Registration failed. Please try again.',
+    'auth.loginFailed': 'Login failed. Please try again.',
+    'auth.requiresDesktop': 'This requires the desktop application.',
+
+    'createOrder.title': 'New Order',
+    'createOrder.clientPlaceholder': 'Enter client name',
+    'createOrder.initialStatus': 'Initial Status',
+    'createOrder.notesPlaceholder': 'Any notes about this order...',
+    'createOrder.clientRequired': 'Client name is required.',
+    'createOrder.creating': 'Creating...',
+    'createOrder.create': 'Create Order',
+
+    'createElement.title': 'New Element',
+    'createElement.name': 'Name',
+    'createElement.namePlaceholder': 'e.g., Bucket, Shovel',
+    'createElement.labelPlaceholder': 'Groups in production view',
+    'createElement.material': 'Material',
+    'createElement.materialPlaceholder': 'Plastic, Metal...',
+    'createElement.weight': 'Weight (g)',
+    'createElement.dualColor': 'Dual color element',
+    'createElement.creating': 'Creating...',
+    'createElement.nameRequired': 'Name is required',
+    'createElement.materialRequired': 'Material is required',
+    'createElement.weightRequired': 'Weight must be > 0',
+    'createElement.selectColor': 'Select a color',
+    'createElement.selectSecondColor': 'Select a second color for dual-color',
+
+    'createProduct.title': 'New Product',
+    'createProduct.serialNumber': 'Serial Number',
+    'createProduct.serialPlaceholder': 'e.g. BKT-001',
+    'createProduct.labelPlaceholder': 'e.g. Premium Red Bucket',
+    'createProduct.category': 'Category',
+    'createProduct.selectCategory': 'Select...',
+    'createProduct.newCategory': '+ New',
+    'createProduct.newCategoryPlaceholder': 'New category name',
+    'createProduct.unitsPerBox': 'Units/Box',
+    'createProduct.boxType': 'Box Type (for assembly deduction)',
+    'createProduct.noBoxDeduction': 'None (no box deduction)',
+    'createProduct.imageRequired': 'Image *',
+    'createProduct.creating': 'Creating...',
+    'createProduct.create': 'Create Product',
+    'createProduct.serialRequired': 'Serial number is required',
+    'createProduct.categoryRequired': 'Category is required',
+    'createProduct.imageReq': 'Product image is required',
+    'createProduct.unitsError': 'Units per box must be at least 1',
+
+    'orderItems.addedProducts': 'Added Products',
+    'orderItems.searchPlaceholder': 'Search products by serial or category...',
+    'orderItems.loadingProducts': 'Loading products...',
+    'orderItems.noProducts': 'No products found. Create products first.',
+    'orderItems.noMatch': 'No products match your search.',
+    'orderItems.boxesOf': 'Boxes of',
+    'orderItems.adding': 'Adding...',
+
+    'productElements.title': 'Select Elements',
+    'productElements.chooseFor': 'Choose elements for',
+    'productElements.searchPlaceholder': 'Search elements by name, color, or material...',
+    'productElements.noMatch': 'No elements match your search',
+    'productElements.noElements': 'No elements available',
+    'productElements.qty': 'Qty',
+    'productElements.saving': 'Saving...',
+    'productElements.saveElements': 'Save Elements',
+
+    'productCard.noImage': 'No image',
+    'productCard.more': 'more',
+    'productCard.noElements': 'No elements',
+    'productCard.sure': 'Sure?',
+    'productCard.clone': 'Clone',
+
+    'update.checkFailed': 'Update Check Failed',
+    'update.checkFailedMsg': 'Failed to check for updates',
+    'update.available': 'Update Available',
+    'update.availableMsg': 'is available. Downloading in background...',
+    'update.downloading': 'Downloading...',
+    'update.downloadingTitle': 'Downloading Update',
+    'update.downloaded': 'downloaded',
+    'update.readyTitle': 'Update Ready to Install',
+    'update.readyMsg': 'has been downloaded and is ready to install.',
+    'update.restartInstall': 'Restart & Install',
+    'update.installing': 'Installing...',
+    'update.later': 'Later',
+
+    'storage.subtitle': 'Manage raw material stock levels',
+    'storage.addMaterial': 'Add Material',
+    'storage.noMaterials': 'No raw materials yet',
+    'storage.noMaterialsHint': 'Click "Add Material" to add your first raw material.',
+    'storage.noMatch': 'No materials match your search',
+    'storage.noMatchHint': 'Try a different search term.',
+    'storage.unit': 'Unit',
+    'storage.currentStock': 'Current Stock',
+    'storage.adjustStock': 'Adjust Stock',
+    'storage.addRawMaterial': 'Add Raw Material',
+    'storage.materialPlaceholder': 'Material name (e.g., PVC, PP, Cardboard Box A)',
+    'storage.unitOfMeasurement': 'Unit of measurement',
+    'storage.grams': 'Grams (g)',
+    'storage.kilograms': 'Kilograms (kg)',
+    'storage.unitsLabel': 'Units',
+    'storage.meters': 'Meters',
+    'storage.liters': 'Liters',
+    'storage.sheets': 'Sheets',
+    'storage.addStock': 'Add Stock',
+    'storage.removeStock': 'Remove Stock',
+    'storage.reasonPlaceholder': 'Reason (optional)',
+    'storage.newStockWillBe': 'New stock will be:',
+    'storage.adjusting': 'Adjusting...',
+    'storage.editRawMaterial': 'Edit Raw Material',
+    'storage.materialName': 'Material name',
+    'storage.saving': 'Saving...',
+    'storage.creating': 'Creating...',
   },
 
   sq: {
@@ -555,6 +822,135 @@ const translations: Record<Language, TranslationKeys> = {
     'print.totalRequirements': 'Kërkesat Totale — Të Gjitha Porositë',
     'print.ordersInProduction': 'porosi në prodhim',
     'print.labeledElements': 'Elemente me Etiketë',
+
+    'auth.startingApp': 'Duke startuar aplikacionin...',
+    'auth.createAccount': 'Krijo Llogari',
+    'auth.signIn': 'Identifikohu',
+    'auth.createAccountSubtitle': 'Krijo llogarinë tënde për të filluar',
+    'auth.signInSubtitle': 'Identifikohu në llogarinë tënde',
+    'auth.username': 'Emri i përdoruesit',
+    'auth.usernamePlaceholder': 'Vendos emrin e përdoruesit',
+    'auth.password': 'Fjalëkalimi',
+    'auth.passwordPlaceholder': 'Vendos fjalëkalimin',
+    'auth.confirmPassword': 'Konfirmo Fjalëkalimin',
+    'auth.confirmPasswordPlaceholder': 'Rivendos fjalëkalimin',
+    'auth.pleaseWait': 'Ju lutem prisni...',
+    'auth.alreadyHaveAccount': 'Keni tashmë një llogari?',
+    'auth.needAccount': 'Keni nevojë për llogari?',
+    'auth.usernameRequired': 'Emri i përdoruesit kërkohet',
+    'auth.usernameMinLength': 'Emri i përdoruesit duhet të jetë së paku 3 karaktere',
+    'auth.passwordRequired': 'Fjalëkalimi kërkohet',
+    'auth.passwordMinLength': 'Fjalëkalimi duhet të jetë së paku 4 karaktere',
+    'auth.passwordsNoMatch': 'Fjalëkalimet nuk përputhen',
+    'auth.registrationFailed': 'Regjistrimi dështoi. Provoni përsëri.',
+    'auth.loginFailed': 'Identifikimi dështoi. Provoni përsëri.',
+    'auth.requiresDesktop': 'Kjo kërkon aplikacionin desktop.',
+
+    'createOrder.title': 'Porosi e Re',
+    'createOrder.clientPlaceholder': 'Vendos emrin e klientit',
+    'createOrder.initialStatus': 'Statusi Fillestar',
+    'createOrder.notesPlaceholder': 'Shënime për këtë porosi...',
+    'createOrder.clientRequired': 'Emri i klientit kërkohet.',
+    'createOrder.creating': 'Duke krijuar...',
+    'createOrder.create': 'Krijo Porosinë',
+
+    'createElement.title': 'Element i Ri',
+    'createElement.name': 'Emri',
+    'createElement.namePlaceholder': 'p.sh., Kovë, Lopatë',
+    'createElement.labelPlaceholder': 'Grupon në pamjen e prodhimit',
+    'createElement.material': 'Materiali',
+    'createElement.materialPlaceholder': 'Plastikë, Metal...',
+    'createElement.weight': 'Pesha (g)',
+    'createElement.dualColor': 'Element me dy ngjyra',
+    'createElement.creating': 'Duke krijuar...',
+    'createElement.nameRequired': 'Emri kërkohet',
+    'createElement.materialRequired': 'Materiali kërkohet',
+    'createElement.weightRequired': 'Pesha duhet të jetë > 0',
+    'createElement.selectColor': 'Zgjidh një ngjyrë',
+    'createElement.selectSecondColor': 'Zgjidh ngjyrën e dytë',
+
+    'createProduct.title': 'Produkt i Ri',
+    'createProduct.serialNumber': 'Numri Serial',
+    'createProduct.serialPlaceholder': 'p.sh. BKT-001',
+    'createProduct.labelPlaceholder': 'p.sh. Kovë e Kuqe Premium',
+    'createProduct.category': 'Kategoria',
+    'createProduct.selectCategory': 'Zgjidh...',
+    'createProduct.newCategory': '+ E re',
+    'createProduct.newCategoryPlaceholder': 'Emri i kategorisë së re',
+    'createProduct.unitsPerBox': 'Njësi/Kuti',
+    'createProduct.boxType': 'Tipi i kutisë (për zbritje montimi)',
+    'createProduct.noBoxDeduction': 'Asnjë (pa zbritje kutie)',
+    'createProduct.imageRequired': 'Imazhi *',
+    'createProduct.creating': 'Duke krijuar...',
+    'createProduct.create': 'Krijo Produktin',
+    'createProduct.serialRequired': 'Numri serial kërkohet',
+    'createProduct.categoryRequired': 'Kategoria kërkohet',
+    'createProduct.imageReq': 'Imazhi i produktit kërkohet',
+    'createProduct.unitsError': 'Njësitë për kuti duhet të jenë së paku 1',
+
+    'orderItems.addedProducts': 'Produkte të Shtuara',
+    'orderItems.searchPlaceholder': 'Kërko produkte sipas serialit ose kategorisë...',
+    'orderItems.loadingProducts': 'Duke ngarkuar produktet...',
+    'orderItems.noProducts': 'Nuk u gjetën produkte. Krijoni produkte fillimisht.',
+    'orderItems.noMatch': 'Asnjë produkt nuk përputhet me kërkimin.',
+    'orderItems.boxesOf': 'Kuti të',
+    'orderItems.adding': 'Duke shtuar...',
+
+    'productElements.title': 'Zgjidh Elementet',
+    'productElements.chooseFor': 'Zgjidh elementet për',
+    'productElements.searchPlaceholder': 'Kërko elemente sipas emrit, ngjyrës ose materialit...',
+    'productElements.noMatch': 'Asnjë element nuk përputhet me kërkimin',
+    'productElements.noElements': 'Nuk ka elemente të disponueshme',
+    'productElements.qty': 'Sasia',
+    'productElements.saving': 'Duke ruajtur...',
+    'productElements.saveElements': 'Ruaj Elementet',
+
+    'productCard.noImage': 'Pa imazh',
+    'productCard.more': 'më shumë',
+    'productCard.noElements': 'Pa elemente',
+    'productCard.sure': 'Sigurt?',
+    'productCard.clone': 'Kopjo',
+
+    'update.checkFailed': 'Kontrolli i Përditësimit Dështoi',
+    'update.checkFailedMsg': 'Dështoi kontrolli për përditësime',
+    'update.available': 'Përditësim i Disponueshëm',
+    'update.availableMsg': 'është i disponueshëm. Duke shkarkuar në sfond...',
+    'update.downloading': 'Duke shkarkuar...',
+    'update.downloadingTitle': 'Duke Shkarkuar Përditësimin',
+    'update.downloaded': 'shkarkuar',
+    'update.readyTitle': 'Përditësimi Gati për Instalim',
+    'update.readyMsg': 'është shkarkuar dhe gati për instalim.',
+    'update.restartInstall': 'Rifillo & Instalo',
+    'update.installing': 'Duke instaluar...',
+    'update.later': 'Më vonë',
+
+    'storage.subtitle': 'Menaxho nivelet e stokut të lëndës së parë',
+    'storage.addMaterial': 'Shto Material',
+    'storage.noMaterials': 'Nuk ka lëndë të parë ende',
+    'storage.noMaterialsHint': 'Kliko "Shto Material" për të shtuar lëndën e parë.',
+    'storage.noMatch': 'Asnjë material nuk përputhet me kërkimin',
+    'storage.noMatchHint': 'Provo një kërkim tjetër.',
+    'storage.unit': 'Njësia',
+    'storage.currentStock': 'Stoku Aktual',
+    'storage.adjustStock': 'Rregullo Stokun',
+    'storage.addRawMaterial': 'Shto Lëndë të Parë',
+    'storage.materialPlaceholder': 'Emri i materialit (p.sh., PVC, PP, Kuti Kartoni A)',
+    'storage.unitOfMeasurement': 'Njësia e matjes',
+    'storage.grams': 'Gram (g)',
+    'storage.kilograms': 'Kilogram (kg)',
+    'storage.unitsLabel': 'Njësi',
+    'storage.meters': 'Metra',
+    'storage.liters': 'Litra',
+    'storage.sheets': 'Fletë',
+    'storage.addStock': 'Shto Stok',
+    'storage.removeStock': 'Hiq Stok',
+    'storage.reasonPlaceholder': 'Arsyeja (opsionale)',
+    'storage.newStockWillBe': 'Stoku i ri do të jetë:',
+    'storage.adjusting': 'Duke rregulluar...',
+    'storage.editRawMaterial': 'Ndrysho Lëndën e Parë',
+    'storage.materialName': 'Emri i materialit',
+    'storage.saving': 'Duke ruajtur...',
+    'storage.creating': 'Duke krijuar...',
   },
 
   mk: {
@@ -729,6 +1125,135 @@ const translations: Record<Language, TranslationKeys> = {
     'print.totalRequirements': 'Вкупни Потреби — Сите Нарачки',
     'print.ordersInProduction': 'нарачки во производство',
     'print.labeledElements': 'Етикетирани Елементи',
+
+    'auth.startingApp': 'Се стартува апликацијата...',
+    'auth.createAccount': 'Креирај Сметка',
+    'auth.signIn': 'Најави се',
+    'auth.createAccountSubtitle': 'Креирајте ја вашата сметка за да започнете',
+    'auth.signInSubtitle': 'Најавете се на вашата сметка',
+    'auth.username': 'Корисничко име',
+    'auth.usernamePlaceholder': 'Внесете корисничко име',
+    'auth.password': 'Лозинка',
+    'auth.passwordPlaceholder': 'Внесете лозинка',
+    'auth.confirmPassword': 'Потврди Лозинка',
+    'auth.confirmPasswordPlaceholder': 'Повторно внесете лозинка',
+    'auth.pleaseWait': 'Ве молиме почекајте...',
+    'auth.alreadyHaveAccount': 'Веќе имате сметка?',
+    'auth.needAccount': 'Ви треба сметка?',
+    'auth.usernameRequired': 'Корисничко име е задолжително',
+    'auth.usernameMinLength': 'Корисничкото име мора да биде најмалку 3 карактери',
+    'auth.passwordRequired': 'Лозинката е задолжителна',
+    'auth.passwordMinLength': 'Лозинката мора да биде најмалку 4 карактери',
+    'auth.passwordsNoMatch': 'Лозинките не се совпаѓаат',
+    'auth.registrationFailed': 'Регистрацијата не успеа. Обидете се повторно.',
+    'auth.loginFailed': 'Најавата не успеа. Обидете се повторно.',
+    'auth.requiresDesktop': 'Ова бара десктоп апликација.',
+
+    'createOrder.title': 'Нова Нарачка',
+    'createOrder.clientPlaceholder': 'Внесете име на клиент',
+    'createOrder.initialStatus': 'Почетен Статус',
+    'createOrder.notesPlaceholder': 'Белешки за оваа нарачка...',
+    'createOrder.clientRequired': 'Името на клиентот е задолжително.',
+    'createOrder.creating': 'Се креира...',
+    'createOrder.create': 'Креирај Нарачка',
+
+    'createElement.title': 'Нов Елемент',
+    'createElement.name': 'Име',
+    'createElement.namePlaceholder': 'пр. Кофа, Лопата',
+    'createElement.labelPlaceholder': 'Групира во прегледот на производство',
+    'createElement.material': 'Материјал',
+    'createElement.materialPlaceholder': 'Пластика, Метал...',
+    'createElement.weight': 'Тежина (г)',
+    'createElement.dualColor': 'Елемент со две бои',
+    'createElement.creating': 'Се креира...',
+    'createElement.nameRequired': 'Името е задолжително',
+    'createElement.materialRequired': 'Материјалот е задолжителен',
+    'createElement.weightRequired': 'Тежината мора да биде > 0',
+    'createElement.selectColor': 'Изберете боја',
+    'createElement.selectSecondColor': 'Изберете втора боја',
+
+    'createProduct.title': 'Нов Производ',
+    'createProduct.serialNumber': 'Сериски Број',
+    'createProduct.serialPlaceholder': 'пр. BKT-001',
+    'createProduct.labelPlaceholder': 'пр. Премиум Црвена Кофа',
+    'createProduct.category': 'Категорија',
+    'createProduct.selectCategory': 'Изберете...',
+    'createProduct.newCategory': '+ Нова',
+    'createProduct.newCategoryPlaceholder': 'Име на нова категорија',
+    'createProduct.unitsPerBox': 'Единици/Кутија',
+    'createProduct.boxType': 'Тип на кутија (за одземање при склопување)',
+    'createProduct.noBoxDeduction': 'Нема (без одземање на кутија)',
+    'createProduct.imageRequired': 'Слика *',
+    'createProduct.creating': 'Се креира...',
+    'createProduct.create': 'Креирај Производ',
+    'createProduct.serialRequired': 'Серискиот број е задолжителен',
+    'createProduct.categoryRequired': 'Категоријата е задолжителна',
+    'createProduct.imageReq': 'Сликата на производот е задолжителна',
+    'createProduct.unitsError': 'Единиците по кутија мора да бидат најмалку 1',
+
+    'orderItems.addedProducts': 'Додадени Производи',
+    'orderItems.searchPlaceholder': 'Пребарај производи по сериски број или категорија...',
+    'orderItems.loadingProducts': 'Се вчитуваат производите...',
+    'orderItems.noProducts': 'Не се пронајдени производи. Креирајте прво производи.',
+    'orderItems.noMatch': 'Нема производи што одговараат на пребарувањето.',
+    'orderItems.boxesOf': 'Кутии од',
+    'orderItems.adding': 'Се додава...',
+
+    'productElements.title': 'Изберете Елементи',
+    'productElements.chooseFor': 'Изберете елементи за',
+    'productElements.searchPlaceholder': 'Пребарај елементи по име, боја или материјал...',
+    'productElements.noMatch': 'Нема елементи што одговараат на пребарувањето',
+    'productElements.noElements': 'Нема достапни елементи',
+    'productElements.qty': 'Кол.',
+    'productElements.saving': 'Се зачувува...',
+    'productElements.saveElements': 'Зачувај Елементи',
+
+    'productCard.noImage': 'Нема слика',
+    'productCard.more': 'повеќе',
+    'productCard.noElements': 'Нема елементи',
+    'productCard.sure': 'Сигурни?',
+    'productCard.clone': 'Клонирај',
+
+    'update.checkFailed': 'Проверката за Ажурирање Не Успеа',
+    'update.checkFailedMsg': 'Не успеа проверката за ажурирања',
+    'update.available': 'Достапно Ажурирање',
+    'update.availableMsg': 'е достапна. Се презема во позадина...',
+    'update.downloading': 'Се презема...',
+    'update.downloadingTitle': 'Се Презема Ажурирањето',
+    'update.downloaded': 'преземено',
+    'update.readyTitle': 'Ажурирањето е Подготвено',
+    'update.readyMsg': 'е преземено и подготвено за инсталирање.',
+    'update.restartInstall': 'Рестартирај и Инсталирај',
+    'update.installing': 'Се инсталира...',
+    'update.later': 'Подоцна',
+
+    'storage.subtitle': 'Управувајте со нивоата на залиха на суровини',
+    'storage.addMaterial': 'Додај Материјал',
+    'storage.noMaterials': 'Нема суровини засега',
+    'storage.noMaterialsHint': 'Кликнете "Додај Материјал" за да додадете прва суровина.',
+    'storage.noMatch': 'Нема материјали што одговараат',
+    'storage.noMatchHint': 'Пробајте друг термин за пребарување.',
+    'storage.unit': 'Единица',
+    'storage.currentStock': 'Тековна Залиха',
+    'storage.adjustStock': 'Прилагоди Залиха',
+    'storage.addRawMaterial': 'Додај Суровина',
+    'storage.materialPlaceholder': 'Име на материјал (пр. PVC, PP, Картонска кутија A)',
+    'storage.unitOfMeasurement': 'Единица за мерење',
+    'storage.grams': 'Грамови (г)',
+    'storage.kilograms': 'Килограми (кг)',
+    'storage.unitsLabel': 'Единици',
+    'storage.meters': 'Метри',
+    'storage.liters': 'Литри',
+    'storage.sheets': 'Листови',
+    'storage.addStock': 'Додај Залиха',
+    'storage.removeStock': 'Отстрани Залиха',
+    'storage.reasonPlaceholder': 'Причина (опционално)',
+    'storage.newStockWillBe': 'Нова залиха ќе биде:',
+    'storage.adjusting': 'Се прилагодува...',
+    'storage.editRawMaterial': 'Уреди Суровина',
+    'storage.materialName': 'Име на материјал',
+    'storage.saving': 'Се зачувува...',
+    'storage.creating': 'Се креира...',
   },
 };
 

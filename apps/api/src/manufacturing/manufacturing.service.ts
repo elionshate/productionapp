@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma-db/prisma.service';
 import { serialize } from '../common/serialize.util';
 
@@ -74,7 +74,7 @@ export class ManufacturingService {
     });
 
     if (!mfgOrder) {
-      throw new Error('Manufacturing order not found');
+      throw new NotFoundException('Manufacturing order not found');
     }
 
     const requirementsData = mfgOrder.product.productElements.map((pe) => {

@@ -59,6 +59,21 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
   /**
    * Apply all required tables via CREATE TABLE IF NOT EXISTS.
    * This is safe to run on every startup — it only creates missing tables.
+   *
+   * ⚠️  DUAL-SCHEMA WARNING
+   * ─────────────────────────────────────────────────────────────────
+   * This hand-written DDL **must** stay in sync with:
+   *   1. `prisma/schema.prisma`          (root — Next.js / dev)
+   *   2. `apps/api/prisma/schema.prisma` (NestJS / API)
+   *
+   * Whenever you add, rename, or remove a column / table / index:
+   *   • Update the Prisma schema file(s) AND this DDL block.
+   *   • Run `npx prisma migrate dev` (dev) to generate a migration.
+   *   • Verify the DDL below matches the new migration's SQL.
+   *
+   * Failure to keep these in sync will cause runtime errors that only
+   * appear in packaged Electron builds (where Prisma Migrate cannot run).
+   * ─────────────────────────────────────────────────────────────────
    */
   private static applySchema(db: ReturnType<typeof Database>): void {
     db.exec(`

@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import type { ElementResponse } from '../types/ipc';
 import { colorNameToHex } from '../lib/utils';
+import { useI18n } from '../lib/i18n';
 
 interface SelectedElement {
   elementId: string;
@@ -21,6 +22,7 @@ interface ProductElementsModalProps {
 export default function ProductElementsModal({
   isOpen, productId, productName, onClose, onDone,
 }: ProductElementsModalProps) {
+  const { t } = useI18n();
   const [allElements, setAllElements] = useState<ElementResponse[]>([]);
   const [selected, setSelected] = useState<Map<string, SelectedElement>>(new Map());
   const [search, setSearch] = useState('');
@@ -205,10 +207,10 @@ export default function ProductElementsModal({
         <div className="flex items-center justify-between border-b border-zinc-200 px-5 py-4 dark:border-zinc-700 shrink-0">
           <div>
             <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
-              Select Elements
+              {t('productElements.title')}
             </h2>
             <p className="text-sm text-zinc-500 dark:text-zinc-400">
-              Choose elements for <span className="font-medium text-zinc-700 dark:text-zinc-300">{productName}</span>
+              {t('productElements.chooseFor')} <span className="font-medium text-zinc-700 dark:text-zinc-300">{productName}</span>
               {selectedCount > 0 && (
                 <span className="ml-2 inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-950/40 dark:text-blue-400">
                   {selectedCount} selected
@@ -233,7 +235,7 @@ export default function ProductElementsModal({
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search elements by name, color, or material..."
+              placeholder={t('productElements.searchPlaceholder')}
               className="w-full rounded-lg border border-zinc-300 bg-white py-2 pl-10 pr-3 text-sm text-zinc-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
             />
           </div>
@@ -252,7 +254,7 @@ export default function ProductElementsModal({
               <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
               </svg>
-              <p className="text-sm">{search ? 'No elements match your search' : 'No elements available'}</p>
+              <p className="text-sm">{search ? t('productElements.noMatch') : t('productElements.noElements')}</p>
             </div>
           ) : (
             <div className="space-y-1">
@@ -350,7 +352,7 @@ export default function ProductElementsModal({
                                 {/* Quantity input (only if selected) */}
                                 {isSelected && (
                                   <div className="mt-2 flex items-center gap-1" onClick={e => e.stopPropagation()}>
-                                    <label className="text-[10px] font-medium text-blue-600 dark:text-blue-400 shrink-0">Qty:</label>
+                                    <label className="text-[10px] font-medium text-blue-600 dark:text-blue-400 shrink-0">{t('productElements.qty')}:</label>
                                     <input
                                       type="number"
                                       min="1"
@@ -377,7 +379,7 @@ export default function ProductElementsModal({
         <div className="border-t border-zinc-200 px-5 py-4 dark:border-zinc-700 shrink-0">
           <div className="flex items-center justify-between">
             <p className="text-sm text-zinc-500 dark:text-zinc-400">
-              {selectedCount} element{selectedCount !== 1 ? 's' : ''} selected
+              {selectedCount} {t('inventory.element')}{selectedCount !== 1 ? 's' : ''}
             </p>
             <div className="flex gap-2">
               <button
@@ -385,7 +387,7 @@ export default function ProductElementsModal({
                 onClick={onClose}
                 className="rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
               >
-                Cancel
+                {t('common.cancel')}
               </button>
               <button
                 type="button"
@@ -393,7 +395,7 @@ export default function ProductElementsModal({
                 disabled={isSaving}
                 className="rounded-lg bg-blue-600 px-6 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isSaving ? 'Saving...' : 'Save Elements'}
+                {isSaving ? t('productElements.saving') : t('productElements.saveElements')}
               </button>
             </div>
           </div>

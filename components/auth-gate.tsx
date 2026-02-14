@@ -3,10 +3,12 @@
 import { useEffect, useState, useCallback } from 'react';
 import type { UserResponse } from '../types/ipc';
 import { AuthContext } from '../hooks/use-auth';
+import { useI18n } from '../lib/i18n';
 
 type AuthScreen = 'loading' | 'register' | 'login';
 
 export default function AuthGate({ children }: { children: React.ReactNode }) {
+  const { t } = useI18n();
   const [screen, setScreen] = useState<AuthScreen>('loading');
   const [user, setUser] = useState<UserResponse | null>(null);
   const [username, setUsername] = useState('');
@@ -54,30 +56,30 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
     setError('');
 
     if (!username.trim()) {
-      setError('Username is required');
+      setError(t('auth.usernameRequired'));
       return;
     }
     if (username.trim().length < 3) {
-      setError('Username must be at least 3 characters');
+      setError(t('auth.usernameMinLength'));
       return;
     }
     if (!password) {
-      setError('Password is required');
+      setError(t('auth.passwordRequired'));
       return;
     }
     if (password.length < 4) {
-      setError('Password must be at least 4 characters');
+      setError(t('auth.passwordMinLength'));
       return;
     }
     if (password !== confirmPassword) {
-      setError('Passwords do not match');
+      setError(t('auth.passwordsNoMatch'));
       return;
     }
 
     setIsSubmitting(true);
     try {
       if (!window.electron) {
-        setError('Registration requires the desktop application. Restart the app with Electron.');
+        setError(t('auth.requiresDesktop'));
         return;
       }
 
@@ -93,7 +95,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
       }
     } catch (err) {
       console.error('Registration error:', err);
-      setError('Registration failed. Please try again.');
+      setError(t('auth.registrationFailed'));
     } finally {
       setIsSubmitting(false);
     }
@@ -104,18 +106,18 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
     setError('');
 
     if (!username.trim()) {
-      setError('Username is required');
+      setError(t('auth.usernameRequired'));
       return;
     }
     if (!password) {
-      setError('Password is required');
+      setError(t('auth.passwordRequired'));
       return;
     }
 
     setIsSubmitting(true);
     try {
       if (!window.electron) {
-        setError('Login requires the desktop application. Restart the app with Electron.');
+        setError(t('auth.requiresDesktop'));
         return;
       }
 
@@ -131,7 +133,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
       }
     } catch (err) {
       console.error('Login error:', err);
-      setError('Login failed. Please try again.');
+      setError(t('auth.loginFailed'));
     } finally {
       setIsSubmitting(false);
     }
@@ -152,7 +154,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
       <div className="flex min-h-screen items-center justify-center bg-zinc-50 dark:bg-zinc-950">
         <div className="flex flex-col items-center gap-3">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-600 border-t-transparent" />
-          <p className="text-sm text-zinc-500">Starting application...</p>
+          <p className="text-sm text-zinc-500">{t('auth.startingApp')}</p>
         </div>
       </div>
     );
@@ -171,12 +173,12 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
             </svg>
           </div>
           <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
-            Production Management
+            {t('app.title')}
           </h1>
           <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
             {isRegister
-              ? 'Create your account to get started'
-              : 'Sign in to your account'}
+              ? t('auth.createAccountSubtitle')
+              : t('auth.signInSubtitle')}
           </p>
         </div>
 
@@ -196,14 +198,14 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
                 htmlFor="username"
                 className="mb-1.5 block text-sm font-medium text-zinc-700 dark:text-zinc-300"
               >
-                Username
+                {t('auth.username')}
               </label>
               <input
                 id="username"
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder="Enter your username"
+                placeholder={t('auth.usernamePlaceholder')}
                 autoFocus
                 autoComplete="username"
                 className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2.5 text-sm text-zinc-900 placeholder-zinc-400 outline-none transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder-zinc-500 dark:focus:border-blue-400"
@@ -216,14 +218,14 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
                 htmlFor="password"
                 className="mb-1.5 block text-sm font-medium text-zinc-700 dark:text-zinc-300"
               >
-                Password
+                {t('auth.password')}
               </label>
               <input
                 id="password"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter your password"
+                placeholder={t('auth.passwordPlaceholder')}
                 autoComplete={isRegister ? 'new-password' : 'current-password'}
                 className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2.5 text-sm text-zinc-900 placeholder-zinc-400 outline-none transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder-zinc-500 dark:focus:border-blue-400"
               />
@@ -236,14 +238,14 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
                   htmlFor="confirmPassword"
                   className="mb-1.5 block text-sm font-medium text-zinc-700 dark:text-zinc-300"
                 >
-                  Confirm Password
+                  {t('auth.confirmPassword')}
                 </label>
                 <input
                   id="confirmPassword"
                   type="password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="Re-enter your password"
+                  placeholder={t('auth.confirmPasswordPlaceholder')}
                   autoComplete="new-password"
                   className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2.5 text-sm text-zinc-900 placeholder-zinc-400 outline-none transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder-zinc-500 dark:focus:border-blue-400"
                 />
@@ -257,10 +259,10 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
               className="mt-2 w-full rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:focus:ring-offset-zinc-900"
             >
               {isSubmitting
-                ? 'Please wait...'
+                ? t('auth.pleaseWait')
                 : isRegister
-                  ? 'Create Account'
-                  : 'Sign In'}
+                  ? t('auth.createAccount')
+                  : t('auth.signIn')}
             </button>
           </form>
         </div>
@@ -269,7 +271,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
         <p className="mt-4 text-center text-sm text-zinc-500 dark:text-zinc-400">
           {isRegister ? (
             <>
-              Already have an account?{' '}
+              {t('auth.alreadyHaveAccount')}{' '}
               <button
                 type="button"
                 onClick={() => {
@@ -280,12 +282,12 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
                 }}
                 className="font-medium text-blue-600 hover:text-blue-500 dark:text-blue-400"
               >
-                Sign In
+                {t('auth.signIn')}
               </button>
             </>
           ) : (
             <>
-              Need an account?{' '}
+              {t('auth.needAccount')}{' '}
               <button
                 type="button"
                 onClick={() => {
@@ -295,7 +297,7 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
                 }}
                 className="font-medium text-blue-600 hover:text-blue-500 dark:text-blue-400"
               >
-                Create Account
+                {t('auth.createAccount')}
               </button>
             </>
           )}

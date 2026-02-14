@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 import { join } from 'path';
 import { NestFactory } from '@nestjs/core';
+import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { PrismaService } from './prisma-db/prisma.service';
 import * as express from 'express';
@@ -18,6 +19,14 @@ async function bootstrap() {
   app.use(express.json({ limit: '100mb' }));
   app.use(express.urlencoded({ limit: '100mb', extended: true }));
   
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: false,
+      transform: true,
+      transformOptions: { enableImplicitConversion: true },
+    }),
+  );
   app.enableCors({ origin: '*' });
   app.setGlobalPrefix('api');
 

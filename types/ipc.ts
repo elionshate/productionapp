@@ -487,11 +487,29 @@ export interface ElectronAPI {
 }
 
 // ============================================================================
-// GLOBAL TYPE AUGMENTATION (for window.electron)
+// NATIVE ELECTRON API (exposed via preload as window.electronAPI)
+// Only 5 methods are available natively via IPC; all data ops use HTTP.
+// ============================================================================
+
+export interface NativeElectronAPI {
+  getApiPort: () => Promise<number>;
+  getAppVersion: () => Promise<string>;
+  selectImage: () => Promise<{ success: boolean; data?: string | null; error?: string }>;
+  onUpdateStatus: (callback: (status: unknown) => void) => () => void;
+  quitAndInstall: () => Promise<void>;
+}
+
+// ============================================================================
+// GLOBAL TYPE AUGMENTATION
+// window.electron    — HTTP-backed bridge (populated by api-bridge.ts)
+// window.electronAPI — Native IPC methods (populated by preload/index.ts)
 // ============================================================================
 
 declare global {
   interface Window {
+    /** HTTP-backed API bridge — all data operations (populated by api-bridge.ts at startup) */
     electron: ElectronAPI;
+    /** Native Electron IPC methods — only available inside Electron (populated by preload) */
+    electronAPI: NativeElectronAPI;
   }
 }

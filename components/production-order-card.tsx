@@ -150,7 +150,7 @@ interface ProductionElementRowProps {
   onRecordProduction: (orderId: string, elementId: string, amount: number) => Promise<number | null>;
 }
 
-function ProductionElementRow({ element, orderId, onRecordProduction }: ProductionElementRowProps) {
+const ProductionElementRow = memo(function ProductionElementRow({ element, orderId, onRecordProduction }: ProductionElementRowProps) {
   const { t } = useI18n();
   const [inputValue, setInputValue] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -313,6 +313,6 @@ function ProductionElementRow({ element, orderId, onRecordProduction }: Producti
       </div>
     </div>
   );
-}
+});
 
 export default ProductionOrderCard;

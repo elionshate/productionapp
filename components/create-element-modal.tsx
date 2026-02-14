@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 import ColorPicker from './color-picker';
+import { useI18n } from '../lib/i18n';
 
 const ACCEPTED_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/bmp'];
 
@@ -21,6 +22,7 @@ interface CreateElementModalProps {
 }
 
 export default function CreateElementModal({ isOpen, onClose, onCreated }: CreateElementModalProps) {
+  const { t } = useI18n();
   const [name, setName] = useState('');
   const [label, setLabel] = useState('');
   const [material, setMaterial] = useState('');
@@ -78,11 +80,11 @@ export default function CreateElementModal({ isOpen, onClose, onCreated }: Creat
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
-    if (!name.trim()) { setError('Name is required'); return; }
-    if (!material.trim()) { setError('Material is required'); return; }
-    if (!weight || Number(weight) <= 0) { setError('Weight must be > 0'); return; }
-    if (!selectedColor) { setError('Select a color'); return; }
-    if (isDualColor && !selectedColor2) { setError('Select a second color for dual-color'); return; }
+    if (!name.trim()) { setError(t('createElement.nameRequired')); return; }
+    if (!material.trim()) { setError(t('createElement.materialRequired')); return; }
+    if (!weight || Number(weight) <= 0) { setError(t('createElement.weightRequired')); return; }
+    if (!selectedColor) { setError(t('createElement.selectColor')); return; }
+    if (isDualColor && !selectedColor2) { setError(t('createElement.selectSecondColor')); return; }
     if (!window.electron) { setError('Electron not available'); return; }
 
     setIsSubmitting(true);
@@ -132,7 +134,7 @@ export default function CreateElementModal({ isOpen, onClose, onCreated }: Creat
       <div className="w-full max-w-sm rounded-xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-700 dark:bg-zinc-900">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-3 dark:border-zinc-700">
-          <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-50">New Element</h2>
+          <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-50">{t('createElement.title')}</h2>
           <button onClick={onClose} className="rounded-lg p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -177,10 +179,10 @@ export default function CreateElementModal({ isOpen, onClose, onCreated }: Creat
               </div>
             )}
             <div className="flex-1 min-w-0">
-              <label className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">Name <span className="text-red-500">*</span></label>
+              <label className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">{t('createElement.name')} <span className="text-red-500">*</span></label>
               <input
                 type="text" value={name} onChange={(e) => setName(e.target.value)}
-                placeholder="e.g., Bucket, Shovel" autoFocus
+                placeholder={t('createElement.namePlaceholder')} autoFocus
                 className="w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
               />
             </div>
@@ -188,10 +190,10 @@ export default function CreateElementModal({ isOpen, onClose, onCreated }: Creat
 
           {/* Row 2: Label (optional) */}
           <div>
-            <label className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">Label <span className="text-zinc-400 dark:text-zinc-500">(optional)</span></label>
+            <label className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">{t('print.label')} <span className="text-zinc-400 dark:text-zinc-500">(optional)</span></label>
             <input
               type="text" value={label} onChange={(e) => setLabel(e.target.value)}
-              placeholder="Groups in production view"
+              placeholder={t('createElement.labelPlaceholder')}
               className="w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-900 outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500/20 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
             />
           </div>
@@ -199,15 +201,15 @@ export default function CreateElementModal({ isOpen, onClose, onCreated }: Creat
           {/* Row 3: Material + Weight side by side */}
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">Material <span className="text-red-500">*</span></label>
+              <label className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">{t('createElement.material')} <span className="text-red-500">*</span></label>
               <input
                 type="text" value={material} onChange={(e) => setMaterial(e.target.value)}
-                placeholder="Plastic, Metal..."
+                placeholder={t('createElement.materialPlaceholder')}
                 className="w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">Weight (g) <span className="text-red-500">*</span></label>
+              <label className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">{t('createElement.weight')} <span className="text-red-500">*</span></label>
               <input
                 type="number" value={weight} onChange={(e) => setWeight(e.target.value)}
                 placeholder="150" min="0.1" step="0.1"
@@ -232,7 +234,7 @@ export default function CreateElementModal({ isOpen, onClose, onCreated }: Creat
               onChange={(e) => { setIsDualColor(e.target.checked); if (!e.target.checked) setSelectedColor2(null); }}
               className="h-4 w-4 rounded border-zinc-300 text-blue-600 focus:ring-blue-500"
             />
-            <label htmlFor="dualColor" className="text-xs font-medium text-zinc-600 dark:text-zinc-400">Dual color element</label>
+            <label htmlFor="dualColor" className="text-xs font-medium text-zinc-600 dark:text-zinc-400">{t('createElement.dualColor')}</label>
           </div>
 
           {isDualColor && (
@@ -247,11 +249,11 @@ export default function CreateElementModal({ isOpen, onClose, onCreated }: Creat
           <div className="flex gap-2 pt-1">
             <button type="button" onClick={onClose}
               className="flex-1 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700">
-              Cancel
+              {t('common.cancel')}
             </button>
             <button type="submit" disabled={isSubmitting}
               className="flex-1 rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed">
-              {isSubmitting ? 'Creating...' : 'Create'}
+              {isSubmitting ? t('createElement.creating') : t('common.add')}
             </button>
           </div>
         </form>

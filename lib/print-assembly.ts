@@ -6,6 +6,16 @@
 
 import { colorNameToHex } from './utils';
 
+/** Escape HTML special characters to prevent XSS in print windows */
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 export async function printAssemblySheet(orderId: string): Promise<void> {
   if (!window.electron) return;
   try {
@@ -100,8 +110,8 @@ export async function printAssemblySheet(orderId: string): Promise<void> {
     tableHtml += `</tbody></table>`;
 
     let printHtml = '';
-    printHtml += `<h2 style="margin:0 0 4px;font-size:15px;">Assembly Sheet — Order #${order.orderNumber}</h2>`;
-    printHtml += `<p style="margin:0 0 12px;font-size:10px;color:#666;">${order.clientName} · ${dateStr}${order.notes ? ` · ${order.notes}` : ''}</p>`;
+    printHtml += `<h2 style="margin:0 0 4px;font-size:15px;">Assembly Sheet — Order #${escapeHtml(String(order.orderNumber))}</h2>`;
+    printHtml += `<p style="margin:0 0 12px;font-size:10px;color:#666;">${escapeHtml(order.clientName || '')} · ${dateStr}${order.notes ? ` · ${escapeHtml(order.notes)}` : ''}</p>`;
     printHtml += tableHtml;
 
     const printWindow = window.open('', '_blank', 'width=1100,height=700');

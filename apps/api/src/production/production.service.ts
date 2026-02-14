@@ -69,8 +69,10 @@ export class ProductionService {
       totalAllocatedPerElement.set(alloc.elementId, prev + alloc.amountAllocated);
     }
 
-    // Retroactive fix: auto-generate manufacturing orders for orders that have NONE.
-    // Only triggers when an order has items with elements but zero manufacturing orders.
+    // Idempotent retroactive fix: auto-generate manufacturing orders for orders that have NONE.
+    // This is safe inside a GET because it is strictly idempotent — it only triggers when
+    // an order has items with elements but ZERO manufacturing orders. Re-running this on the
+    // same data set produces no additional writes (the guard `!hasMfgOrders` prevents duplicates).
     // IMPORTANT: Never delete existing manufacturing orders here — that would wipe quantityProduced progress.
     for (const order of orders) {
       const hasMfgOrders = order.manufacturingOrders.length > 0;
@@ -190,8 +192,11 @@ export class ProductionService {
     const applied: Array<{ elementId: string; amountApplied: number }> = [];
 
     await this.prisma.$transaction(async (tx) => {
-      // Get ALL existing allocations across ALL orders (to calculate what's truly unallocated)
-      const allAllocations = await tx.inventoryAllocation.findMany();
+      // Get ALL existing allocations scoped to relevant elements (fixes O(N) scan — L7)
+      const elementIdArray = Array.from(elementNeeds.keys());
+      const allAllocations = elementIdArray.length > 0
+        ? await tx.inventoryAllocation.findMany({ where: { elementId: { in: elementIdArray } } })
+        : [];
       const totalAllocatedPerElement = new Map<string, number>();
       for (const alloc of allAllocations) {
         const prev = totalAllocatedPerElement.get(alloc.elementId) ?? 0;

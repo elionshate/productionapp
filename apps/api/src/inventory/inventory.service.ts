@@ -83,11 +83,12 @@ export class InventoryService {
     return result;
   }
 
-  async getTransactions() {
+  async getTransactions(skip = 0, take = 100) {
     const transactions = await this.prisma.inventoryTransaction.findMany({
       include: { element: true },
       orderBy: { createdAt: 'desc' },
-      take: 100,
+      skip,
+      take,
     });
     return serialize(transactions);
   }

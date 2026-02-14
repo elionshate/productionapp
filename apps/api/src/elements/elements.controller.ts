@@ -1,5 +1,6 @@
 import { Controller, Get, Post, Put, Delete, Body, Param } from '@nestjs/common';
 import { ElementsService } from './elements.service';
+import { CreateElementDto, UpdateElementDto } from './dto/elements.dto';
 
 @Controller('elements')
 export class ElementsController {
@@ -12,33 +13,13 @@ export class ElementsController {
   }
 
   @Post()
-  async create(@Body() body: {
-    uniqueName: string;
-    label?: string;
-    color: string;
-    color2?: string | null;
-    isDualColor?: boolean;
-    material: string;
-    rawMaterialId?: string | null;
-    weightGrams: number;
-    imageUrl?: string;
-  }) {
+  async create(@Body() body: CreateElementDto) {
     const data = await this.elementsService.create(body);
     return { success: true, data };
   }
 
   @Put(':id')
-  async update(@Param('id') id: string, @Body() body: {
-    uniqueName?: string;
-    label?: string;
-    color?: string;
-    color2?: string | null;
-    isDualColor?: boolean;
-    material?: string;
-    rawMaterialId?: string | null;
-    weightGrams?: number;
-    imageUrl?: string | null;
-  }) {
+  async update(@Param('id') id: string, @Body() body: UpdateElementDto) {
     const data = await this.elementsService.update(id, body);
     return { success: true, data };
   }

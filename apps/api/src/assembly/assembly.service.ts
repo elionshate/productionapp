@@ -1,6 +1,7 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma-db/prisma.service';
 import { serialize } from '../common/serialize.util';
+import { deductElementInventory, deductBoxMaterial } from '../common/inventory.helper';
 
 @Injectable()
 export class AssemblyService {
@@ -184,32 +185,12 @@ export class AssemblyService {
 
     const totalUnits = boxes * (product.unitsPerBox ?? 1);
 
-    // Inventory guard
-    const insufficientElements: { elementName: string; color: string; required: number; available: number }[] = [];
-    for (const pe of product.productElements) {
+    // Build deduction list for shared helper
+    const deductions = product.productElements.map(pe => {
       const rawQty = pe.quantityNeeded * totalUnits;
-      const deductAmount = pe.element?.isDualColor ? Math.ceil(rawQty / 2) : rawQty;
-      const inventoryRecord = await this.prisma.inventory.findUnique({
-        where: { elementId: pe.elementId },
-        include: { element: true },
-      });
-      const available = inventoryRecord?.totalAmount ?? 0;
-      if (available < deductAmount) {
-        insufficientElements.push({
-          elementName: inventoryRecord?.element?.uniqueName ?? pe.elementId,
-          color: inventoryRecord?.element?.color ?? 'Unknown',
-          required: deductAmount,
-          available,
-        });
-      }
-    }
-
-    if (insufficientElements.length > 0) {
-      const details = insufficientElements
-        .map((e) => `${e.elementName} (${e.color}): need ${e.required}, have ${e.available}`)
-        .join('\n');
-      throw new BadRequestException(`Insufficient inventory to assemble ${boxes} box(es):\n${details}`);
-    }
+      const amount = pe.element?.isDualColor ? Math.ceil(rawQty / 2) : rawQty;
+      return { elementId: pe.elementId, amount, reason: `Excess assembly: ${boxes} box(es) of ${product.serialNumber}` };
+    });
 
     await this.prisma.$transaction(async (tx) => {
       // Add to product stock (excess stock — not tied to any order)
@@ -219,36 +200,12 @@ export class AssemblyService {
         update: { stockBoxedAmount: { increment: boxes } },
       });
 
-      // Deduct from inventory
-      for (const pe of product.productElements) {
-        const rawQty = pe.quantityNeeded * totalUnits;
-        const deductAmount = pe.element?.isDualColor ? Math.ceil(rawQty / 2) : rawQty;
-        await tx.inventory.update({
-          where: { elementId: pe.elementId },
-          data: { totalAmount: { decrement: deductAmount } },
-        });
-        await tx.inventoryTransaction.create({
-          data: {
-            elementId: pe.elementId,
-            changeAmount: -deductAmount,
-            reason: `Excess assembly: ${boxes} box(es) of ${product.serialNumber}`,
-          },
-        });
-      }
+      // Deduct element inventory (with guard) via shared helper
+      await deductElementInventory(tx as any, deductions);
 
-      // Deduct box material if applicable
+      // Deduct box material if applicable via shared helper
       if (product.boxRawMaterialId) {
-        await tx.rawMaterial.update({
-          where: { id: product.boxRawMaterialId },
-          data: { stockQty: { decrement: boxes } },
-        });
-        await tx.rawMaterialTransaction.create({
-          data: {
-            rawMaterialId: product.boxRawMaterialId,
-            changeAmount: -boxes,
-            reason: `Excess assembly: ${boxes} box(es) for ${product.serialNumber}`,
-          },
-        });
+        await deductBoxMaterial(tx as any, product.boxRawMaterialId, boxes, `Excess assembly: ${boxes} box(es) for ${product.serialNumber}`);
       }
     });
 
@@ -293,32 +250,12 @@ export class AssemblyService {
 
       const totalUnitsAssembled = boxesAssembled * (product.unitsPerBox ?? 1);
 
-      // Inventory guard — inside transaction to prevent concurrent depletion
-      const insufficientElements: { elementName: string; color: string; required: number; available: number }[] = [];
-      for (const pe of product.productElements) {
+      // Build deduction list for shared helper
+      const deductions = product.productElements.map(pe => {
         const rawQty = pe.quantityNeeded * totalUnitsAssembled;
-        const deductAmount = pe.element?.isDualColor ? Math.ceil(rawQty / 2) : rawQty;
-        const inventoryRecord = await tx.inventory.findUnique({
-          where: { elementId: pe.elementId },
-          include: { element: true },
-        });
-        const available = inventoryRecord?.totalAmount ?? 0;
-        if (available < deductAmount) {
-          insufficientElements.push({
-            elementName: inventoryRecord?.element?.uniqueName ?? pe.elementId,
-            color: inventoryRecord?.element?.color ?? 'Unknown',
-            required: deductAmount,
-            available,
-          });
-        }
-      }
-
-      if (insufficientElements.length > 0) {
-        const details = insufficientElements
-          .map((e) => `${e.elementName} (${e.color}): need ${e.required}, have ${e.available}`)
-          .join('\n');
-        throw new BadRequestException(`Insufficient inventory to assemble ${boxesAssembled} box(es):\n${details}`);
-      }
+        const amount = pe.element?.isDualColor ? Math.ceil(rawQty / 2) : rawQty;
+        return { elementId: pe.elementId, amount, reason: `Assembly: ${boxesAssembled} box(es) of ${product.serialNumber}` };
+      });
 
       await tx.orderItem.update({ where: { id: orderItem.id }, data: { boxesAssembled: newTotal } });
 
@@ -326,34 +263,12 @@ export class AssemblyService {
       // touch orderItem.boxesAssembled. ProductStock is exclusively for true excess
       // stock recorded via recordExcessAssembly().
 
-      for (const pe of product.productElements) {
-        const rawQty = pe.quantityNeeded * totalUnitsAssembled;
-        const deductAmount = pe.element?.isDualColor ? Math.ceil(rawQty / 2) : rawQty;
-        await tx.inventory.update({
-          where: { elementId: pe.elementId },
-          data: { totalAmount: { decrement: deductAmount } },
-        });
-        await tx.inventoryTransaction.create({
-          data: {
-            elementId: pe.elementId,
-            changeAmount: -deductAmount,
-            reason: `Assembly: ${boxesAssembled} box(es) of ${product.serialNumber}`,
-          },
-        });
-      }
+      // Deduct element inventory (with guard) via shared helper
+      await deductElementInventory(tx as any, deductions);
 
+      // Deduct box material if applicable via shared helper
       if (product.boxRawMaterialId) {
-        await tx.rawMaterial.update({
-          where: { id: product.boxRawMaterialId },
-          data: { stockQty: { decrement: boxesAssembled } },
-        });
-        await tx.rawMaterialTransaction.create({
-          data: {
-            rawMaterialId: product.boxRawMaterialId,
-            changeAmount: -boxesAssembled,
-            reason: `Assembly: ${boxesAssembled} box(es) for ${product.serialNumber}`,
-          },
-        });
+        await deductBoxMaterial(tx as any, product.boxRawMaterialId, boxesAssembled, `Assembly: ${boxesAssembled} box(es) for ${product.serialNumber}`);
       }
 
       return { boxesAssembled: newTotal, remaining: orderItem.boxesNeeded - newTotal };

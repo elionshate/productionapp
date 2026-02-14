@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, memo } from 'react';
 import type { ProductResponse } from '../types/ipc';
 import { colorNameToHex } from '../lib/utils';
+import { useI18n } from '../lib/i18n';
 
 interface ProductCardProps {
   product: ProductResponse;
@@ -11,7 +12,8 @@ interface ProductCardProps {
   onClone?: (product: ProductResponse) => void;
 }
 
-export default function ProductCard({ product, onDelete, onEdit, onClone }: ProductCardProps) {
+const ProductCard = memo(function ProductCard({ product, onDelete, onEdit, onClone }: ProductCardProps) {
+  const { t } = useI18n();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -34,7 +36,7 @@ export default function ProductCard({ product, onDelete, onEdit, onClone }: Prod
           <button
             onClick={() => onEdit(product)}
             className="rounded-lg bg-white/90 p-1.5 text-zinc-500 shadow-sm hover:text-blue-600 dark:bg-zinc-800/90 dark:text-zinc-400 dark:hover:text-blue-400"
-            title="Edit"
+            title={t('common.edit')}
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -45,7 +47,7 @@ export default function ProductCard({ product, onDelete, onEdit, onClone }: Prod
           <button
             onClick={() => onClone(product)}
             className="rounded-lg bg-white/90 p-1.5 text-zinc-500 shadow-sm hover:text-green-600 dark:bg-zinc-800/90 dark:text-zinc-400 dark:hover:text-green-400"
-            title="Clone"
+            title={t('productCard.clone')}
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
@@ -61,12 +63,12 @@ export default function ProductCard({ product, onDelete, onEdit, onClone }: Prod
                 ? 'bg-red-600 text-white hover:bg-red-700'
                 : 'bg-white/90 text-zinc-500 hover:text-red-600 dark:bg-zinc-800/90 dark:text-zinc-400 dark:hover:text-red-400'
             } disabled:opacity-50`}
-            title="Delete"
+            title={t('common.delete')}
           >
             {isDeleting ? (
               <span className="text-xs px-1">...</span>
             ) : confirmDelete ? (
-              <span className="text-xs px-1">Sure?</span>
+              <span className="text-xs px-1">{t('productCard.sure')}</span>
             ) : (
               <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -89,7 +91,7 @@ export default function ProductCard({ product, onDelete, onEdit, onClone }: Prod
             <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 21h16.5A2.25 2.25 0 0022.5 18.75V5.25A2.25 2.25 0 0020.25 3H3.75A2.25 2.25 0 001.5 5.25v13.5A2.25 2.25 0 003.75 21z" />
             </svg>
-            <span className="text-xs">No image</span>
+            <span className="text-xs">{t('productCard.noImage')}</span>
           </div>
         )}
       </div>
@@ -132,14 +134,16 @@ export default function ProductCard({ product, onDelete, onEdit, onClone }: Prod
             ))}
             {product.productElements.length > 6 && (
               <p className="text-xs text-zinc-400 dark:text-zinc-500 pl-7">
-                +{product.productElements.length - 6} more
+                +{product.productElements.length - 6} {t('productCard.more')}
               </p>
             )}
           </div>
         ) : (
-          <p className="text-xs text-zinc-400 dark:text-zinc-500 pt-1">No elements</p>
+          <p className="text-xs text-zinc-400 dark:text-zinc-500 pt-1">{t('productCard.noElements')}</p>
         )}
       </div>
     </div>
   );
-}
+});
+
+export default ProductCard;

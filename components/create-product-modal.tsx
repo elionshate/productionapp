@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 import type { RawMaterialResponse } from '../types/ipc';
+import { useI18n } from '../lib/i18n';
 
 interface CreateProductModalProps {
   isOpen: boolean;
@@ -24,6 +25,7 @@ function readFileAsDataUrl(file: File): Promise<string> {
 export default function CreateProductModal({
   isOpen, onClose, onCreated, existingCategories,
 }: CreateProductModalProps) {
+  const { t } = useI18n();
   const [serialNumber, setSerialNumber] = useState('');
   const [label, setLabel] = useState('');
   const [category, setCategory] = useState('');
@@ -97,10 +99,10 @@ export default function CreateProductModal({
 
     const finalCategory = category === '__custom__' ? customCategory.trim() : category;
 
-    if (!serialNumber.trim()) { setError('Serial number is required'); return; }
-    if (!finalCategory) { setError('Category is required'); return; }
-    if (!imageDataUrl) { setError('Product image is required'); return; }
-    if (!unitsPerBox || Number(unitsPerBox) < 1) { setError('Units per box must be at least 1'); return; }
+    if (!serialNumber.trim()) { setError(t('createProduct.serialRequired')); return; }
+    if (!finalCategory) { setError(t('createProduct.categoryRequired')); return; }
+    if (!imageDataUrl) { setError(t('createProduct.imageReq')); return; }
+    if (!unitsPerBox || Number(unitsPerBox) < 1) { setError(t('createProduct.unitsError')); return; }
 
     if (!window.electron) { setError('Electron not available'); return; }
 
@@ -147,7 +149,7 @@ export default function CreateProductModal({
       <div className="w-full max-w-sm rounded-xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-700 dark:bg-zinc-900">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-3 dark:border-zinc-700">
-          <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-50">New Product</h2>
+          <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-50">{t('createProduct.title')}</h2>
           <button onClick={() => { resetForm(); onClose(); }} className="rounded-lg p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -190,14 +192,14 @@ export default function CreateProductModal({
                 <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${isDragging ? 'text-blue-500' : 'text-zinc-400'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 21h16.5A2.25 2.25 0 0022.5 18.75V5.25A2.25 2.25 0 0020.25 3H3.75A2.25 2.25 0 001.5 5.25v13.5A2.25 2.25 0 003.75 21z" />
                 </svg>
-                <p className="text-[9px] font-medium text-zinc-400 mt-0.5">Image *</p>
+                <p className="text-[9px] font-medium text-zinc-400 mt-0.5">{t('createProduct.imageRequired')}</p>
               </div>
             )}
             <div className="flex-1 min-w-0">
-              <label className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">Serial Number <span className="text-red-500">*</span></label>
+              <label className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">{t('createProduct.serialNumber')} <span className="text-red-500">*</span></label>
               <input
                 type="text" value={serialNumber} onChange={(e) => setSerialNumber(e.target.value)}
-                placeholder="e.g. BKT-001" autoFocus
+                placeholder={t('createProduct.serialPlaceholder')} autoFocus
                 className="w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
               />
             </div>
@@ -205,10 +207,10 @@ export default function CreateProductModal({
 
           {/* Label */}
           <div>
-            <label className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">Label</label>
+            <label className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">{t('print.label')}</label>
             <input
               type="text" value={label} onChange={(e) => setLabel(e.target.value)}
-              placeholder="e.g. Premium Red Bucket"
+              placeholder={t('createProduct.labelPlaceholder')}
               className="w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
             />
           </div>
@@ -216,20 +218,20 @@ export default function CreateProductModal({
           {/* Row 2: Category + Units/Box */}
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">Category <span className="text-red-500">*</span></label>
+              <label className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">{t('createProduct.category')} <span className="text-red-500">*</span></label>
               <select
                 value={category} onChange={(e) => setCategory(e.target.value)}
                 className="w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
               >
-                <option value="">Select...</option>
+                <option value="">{t('createProduct.selectCategory')}</option>
                 {existingCategories.map(cat => (
                   <option key={cat} value={cat}>{cat}</option>
                 ))}
-                <option value="__custom__">+ New</option>
+                <option value="__custom__">{t('createProduct.newCategory')}</option>
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">Units/Box <span className="text-red-500">*</span></label>
+              <label className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">{t('createProduct.unitsPerBox')} <span className="text-red-500">*</span></label>
               <input
                 type="number" value={unitsPerBox} onChange={(e) => setUnitsPerBox(e.target.value)} min="1"
                 className="w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
@@ -241,7 +243,7 @@ export default function CreateProductModal({
           {category === '__custom__' && (
             <input
               type="text" value={customCategory} onChange={(e) => setCustomCategory(e.target.value)}
-              placeholder="New category name"
+              placeholder={t('createProduct.newCategoryPlaceholder')}
               className="w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
             />
           )}
@@ -249,13 +251,13 @@ export default function CreateProductModal({
           {/* Box Type (Raw Material) */}
           {availableMaterials.length > 0 && (
             <div>
-              <label className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">Box Type (for assembly deduction)</label>
+              <label className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">{t('createProduct.boxType')}</label>
               <select
                 value={boxRawMaterialId}
                 onChange={(e) => setBoxRawMaterialId(e.target.value)}
                 className="w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
               >
-                <option value="">None (no box deduction)</option>
+                <option value="">{t('createProduct.noBoxDeduction')}</option>
                 {availableMaterials.map(m => (
                   <option key={m.id} value={m.id}>{m.name} ({m.stockQty.toLocaleString()} {m.unit})</option>
                 ))}
@@ -268,7 +270,7 @@ export default function CreateProductModal({
             type="submit" disabled={isSubmitting}
             className="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isSubmitting ? 'Creating...' : 'Create Product'}
+            {isSubmitting ? t('createProduct.creating') : t('createProduct.create')}
           </button>
         </form>
       </div>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useI18n } from '../lib/i18n';
 
 interface CreateOrderModalProps {
   isOpen: boolean;
@@ -9,6 +10,7 @@ interface CreateOrderModalProps {
 }
 
 export default function CreateOrderModal({ isOpen, onClose, onCreated }: CreateOrderModalProps) {
+  const { t } = useI18n();
   const [clientName, setClientName] = useState('');
   const [status, setStatus] = useState<'pending' | 'in_production'>('pending');
   const [notes, setNotes] = useState('');
@@ -33,7 +35,7 @@ export default function CreateOrderModal({ isOpen, onClose, onCreated }: CreateO
 
     const name = clientName.trim();
     if (!name) {
-      setError('Client name is required.');
+      setError(t('createOrder.clientRequired'));
       return;
     }
 
@@ -83,7 +85,7 @@ export default function CreateOrderModal({ isOpen, onClose, onCreated }: CreateO
       <div className="w-full max-w-sm rounded-xl border border-zinc-200 bg-white p-4 shadow-xl dark:border-zinc-700 dark:bg-zinc-900">
         {/* Header */}
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">New Order</h2>
+          <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{t('createOrder.title')}</h2>
           <button onClick={handleClose} className="rounded-md p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -102,13 +104,13 @@ export default function CreateOrderModal({ isOpen, onClose, onCreated }: CreateO
           {/* Client Name */}
           <div>
             <label className="mb-1 block text-xs font-medium text-zinc-700 dark:text-zinc-300">
-              Client Name <span className="text-red-500">*</span>
+              {t('orders.clientName')} <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
               value={clientName}
               onChange={(e) => setClientName(e.target.value)}
-              placeholder="Enter client name"
+              placeholder={t('createOrder.clientPlaceholder')}
               className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
               autoFocus
             />
@@ -117,7 +119,7 @@ export default function CreateOrderModal({ isOpen, onClose, onCreated }: CreateO
           {/* Status Selection */}
           <div>
             <label className="mb-1 block text-xs font-medium text-zinc-700 dark:text-zinc-300">
-              Initial Status
+              {t('createOrder.initialStatus')}
             </label>
             <div className="flex gap-2">
               <button
@@ -129,7 +131,7 @@ export default function CreateOrderModal({ isOpen, onClose, onCreated }: CreateO
                     : 'border-zinc-300 bg-white text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-750'
                 }`}
               >
-                Pending
+                {t('orders.pending')}
               </button>
               <button
                 type="button"
@@ -140,7 +142,7 @@ export default function CreateOrderModal({ isOpen, onClose, onCreated }: CreateO
                     : 'border-zinc-300 bg-white text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-750'
                 }`}
               >
-                In Production
+                {t('orders.inProduction')}
               </button>
             </div>
           </div>
@@ -148,12 +150,12 @@ export default function CreateOrderModal({ isOpen, onClose, onCreated }: CreateO
           {/* Notes (optional) */}
           <div>
             <label className="mb-1 block text-xs font-medium text-zinc-700 dark:text-zinc-300">
-              Notes <span className="text-zinc-400">(optional)</span>
+              {t('orders.notes')} <span className="text-zinc-400">(optional)</span>
             </label>
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="Any notes about this order..."
+              placeholder={t('createOrder.notesPlaceholder')}
               rows={2}
               className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 resize-none"
             />
@@ -166,14 +168,14 @@ export default function CreateOrderModal({ isOpen, onClose, onCreated }: CreateO
               onClick={handleClose}
               className="flex-1 rounded-lg border border-zinc-300 px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
             >
-              Cancel
+              {t('common.cancel')}
             </button>
             <button
               type="submit"
               disabled={isSubmitting || !clientName.trim()}
               className="flex-1 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {isSubmitting ? 'Creating...' : 'Create Order'}
+              {isSubmitting ? t('createOrder.creating') : t('createOrder.create')}
             </button>
           </div>
         </form>

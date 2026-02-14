@@ -111,13 +111,13 @@ export default function Home() {
 
       {/* ===== Content Area ===== */}
       <main className="flex-1 overflow-y-auto">
-        {activeNav === 'Products' && <ProductsTab />}
-        {activeNav === 'Elements' && <ElementsTab />}
-        {activeNav === 'Orders' && <OrdersTab />}
-        {activeNav === 'Production' && <ProductionTab />}
-        {activeNav === 'Inventory' && <InventoryTab />}
-        {activeNav === 'Storage' && <StorageTab />}
-        {activeNav === 'Stock' && <StockTab />}
+        <div style={{ display: activeNav === 'Products' ? 'block' : 'none' }}><ProductsTab /></div>
+        <div style={{ display: activeNav === 'Elements' ? 'block' : 'none' }}><ElementsTab /></div>
+        <div style={{ display: activeNav === 'Orders' ? 'block' : 'none' }}><OrdersTab /></div>
+        <div style={{ display: activeNav === 'Production' ? 'block' : 'none' }}><ProductionTab /></div>
+        <div style={{ display: activeNav === 'Inventory' ? 'block' : 'none' }}><InventoryTab /></div>
+        <div style={{ display: activeNav === 'Storage' ? 'block' : 'none' }}><StorageTab /></div>
+        <div style={{ display: activeNav === 'Stock' ? 'block' : 'none' }}><StockTab /></div>
       </main>
     </div>
   );

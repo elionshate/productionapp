@@ -1,5 +1,6 @@
 import { Controller, Get, Post, Body } from '@nestjs/common';
 import { AssemblyService } from './assembly.service';
+import { RecordAssemblyDto, RecordExcessDto } from './dto/assembly.dto';
 
 @Controller('assembly')
 export class AssemblyController {
@@ -18,13 +19,13 @@ export class AssemblyController {
   }
 
   @Post('record')
-  async record(@Body() body: { orderId: string; productId: string; boxesAssembled: number }) {
+  async record(@Body() body: RecordAssemblyDto) {
     const data = await this.assemblyService.record(body);
     return { success: true, data };
   }
 
   @Post('record-excess')
-  async recordExcess(@Body() body: { productId: string; boxes: number }) {
+  async recordExcess(@Body() body: RecordExcessDto) {
     const data = await this.assemblyService.recordExcessAssembly(body);
     return { success: true, data };
   }

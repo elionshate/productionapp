@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, memo } from 'react';
 import type { OrderResponse } from '../types/ipc';
 import { useI18n } from '../lib/i18n';
 
@@ -42,7 +42,7 @@ const STATUS_CONFIG: Record<string, { label: string; bg: string; text: string; d
   },
 };
 
-export default function OrderCard({ order, onShip, onStartProduction, onDelete, onClick, onEdit }: OrderCardProps) {
+const OrderCard = memo(function OrderCard({ order, onShip, onStartProduction, onDelete, onClick, onEdit }: OrderCardProps) {
   const [confirmShip, setConfirmShip] = useState(false);
   const [isShipping, setIsShipping] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -280,4 +280,6 @@ export default function OrderCard({ order, onShip, onStartProduction, onDelete, 
       </div>
     </div>
   );
-}
+});
+
+export default OrderCard;

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import type { ProductResponse } from '../types/ipc';
+import { useI18n } from '../lib/i18n';
 
 interface OrderItemEntry {
   productId: string;
@@ -20,6 +21,7 @@ interface OrderItemsModalProps {
 export default function OrderItemsModal({
   isOpen, orderId, orderNumber, onClose, onDone,
 }: OrderItemsModalProps) {
+  const { t } = useI18n();
   const [products, setProducts] = useState<ProductResponse[]>([]);
   const [isLoadingProducts, setIsLoadingProducts] = useState(true);
   const [search, setSearch] = useState('');
@@ -178,10 +180,10 @@ export default function OrderItemsModal({
         <div className="flex items-center justify-between border-b border-zinc-200 px-5 py-3 dark:border-zinc-700">
           <div>
             <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-              Order #{orderNumber} — Add Products
+              {t('orders.addProducts')} — #{orderNumber}
             </h2>
             <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
-              Select products and specify boxes needed
+              {t('orders.selectProducts')}
             </p>
           </div>
           <button onClick={onClose} className="rounded-md p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300">
@@ -204,7 +206,7 @@ export default function OrderItemsModal({
           {orderItems.length > 0 && (
             <div className="mb-4">
               <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                Added Products ({orderItems.length})
+                {t('orderItems.addedProducts')} ({orderItems.length})
               </h3>
               <div className="space-y-2">
                 {orderItems.map(item => (
@@ -252,7 +254,7 @@ export default function OrderItemsModal({
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search products by serial or category..."
+                placeholder={t('orderItems.searchPlaceholder')}
                 className="w-full rounded-lg border border-zinc-300 bg-white py-2 pl-9 pr-3 text-sm text-zinc-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
               />
             </div>
@@ -261,12 +263,12 @@ export default function OrderItemsModal({
           {/* Product List (Landscape Cards) */}
           {isLoadingProducts ? (
             <div className="flex items-center justify-center py-10">
-              <span className="text-sm text-zinc-500 dark:text-zinc-400">Loading products...</span>
+              <span className="text-sm text-zinc-500 dark:text-zinc-400">{t('orderItems.loadingProducts')}</span>
             </div>
           ) : filteredProducts.length === 0 ? (
             <div className="flex items-center justify-center py-10">
               <span className="text-sm text-zinc-500 dark:text-zinc-400">
-                {products.length === 0 ? 'No products found. Create products first.' : 'No products match your search.'}
+                {products.length === 0 ? t('orderItems.noProducts') : t('orderItems.noMatch')}
               </span>
             </div>
           ) : (
@@ -318,7 +320,7 @@ export default function OrderItemsModal({
                     {/* Status indicator */}
                     {isAdded && (
                       <span className="flex-shrink-0 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-950/50 dark:text-green-400">
-                        Added
+                        {t('orders.added')}
                       </span>
                     )}
                   </button>
@@ -332,7 +334,7 @@ export default function OrderItemsModal({
             <div className="mt-3 flex items-end gap-3 rounded-lg border border-blue-200 bg-blue-50/50 px-4 py-3 dark:border-blue-800 dark:bg-blue-950/20">
               <div className="flex-1">
                 <label className="mb-1 block text-xs font-medium text-zinc-700 dark:text-zinc-300">
-                  Boxes of <span className="font-semibold">{selectedProduct.serialNumber}</span>
+                  {t('orderItems.boxesOf')} <span className="font-semibold">{selectedProduct.serialNumber}</span>
                 </label>
                 <input
                   type="number"
@@ -343,7 +345,7 @@ export default function OrderItemsModal({
                   autoFocus
                 />
                 <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                  = {(parseInt(boxesInput, 10) || 0) * selectedProduct.unitsPerBox} units total
+                  = {(parseInt(boxesInput, 10) || 0) * selectedProduct.unitsPerBox} {t('orders.unitsTotal')}
                 </p>
               </div>
               <button
@@ -352,7 +354,7 @@ export default function OrderItemsModal({
                 disabled={isSaving}
                 className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {isSaving ? 'Adding...' : 'Add to Order'}
+                {isSaving ? t('orderItems.adding') : t('orders.addToOrder')}
               </button>
             </div>
           )}
@@ -361,7 +363,7 @@ export default function OrderItemsModal({
         {/* Footer */}
         <div className="flex items-center justify-between border-t border-zinc-200 px-5 py-3 dark:border-zinc-700">
           <p className="text-xs text-zinc-500 dark:text-zinc-400">
-            {orderItems.length} product{orderItems.length !== 1 ? 's' : ''} in order
+            {orderItems.length} {t('orders.products')} {t('orders.itemsInOrder')}
           </p>
           <button
             type="button"
@@ -369,7 +371,7 @@ export default function OrderItemsModal({
             disabled={isFinalizing || orderItems.length === 0}
             className="rounded-lg bg-green-600 px-5 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {isFinalizing ? 'Finalizing...' : 'Done — Finalize Order'}
+            {isFinalizing ? t('orders.finalizing') : t('orders.finalize')}
           </button>
         </div>
       </div>

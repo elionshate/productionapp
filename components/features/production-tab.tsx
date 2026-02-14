@@ -71,6 +71,16 @@ export default function ProductionTab() {
     await printAssemblySheet(orderId);
   }, []);
 
+  /** Escape HTML special characters to prevent XSS in print windows */
+  function escapeHtml(str: string): string {
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
   function handlePrintProduction(mode: 'orders' | 'totals', orderId?: string) {
     function buildPivotTable(
       elements: { elementName: string; elementLabel?: string; color: string; remaining?: number; totalNeeded?: number }[],
@@ -174,8 +184,8 @@ export default function ProductionTab() {
         const labeledEls = allEls.filter(e => e.elementLabel);
         const unlabeledEls = allEls.filter(e => !e.elementLabel);
         printHtml += `<div class="order-block">`;
-        printHtml += `<h2>Order #${order.orderNumber} — ${order.clientName}</h2>`;
-        printHtml += `<p>Date: ${dateStr}${order.notes ? ` · Notes: ${order.notes}` : ''}</p>`;
+        printHtml += `<h2>Order #${escapeHtml(String(order.orderNumber))} — ${escapeHtml(order.clientName || '')}</h2>`;
+        printHtml += `<p>Date: ${dateStr}${order.notes ? ` · Notes: ${escapeHtml(order.notes)}` : ''}</p>`;
         if (unlabeledEls.length > 0) printHtml += buildPivotTable(unlabeledEls, false);
         if (labeledEls.length > 0) {
           printHtml += `<h3 style="margin:0.5rem 0 0.2rem;font-size:13px;color:#7c3aed;">Labeled Elements</h3>`;

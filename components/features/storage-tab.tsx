@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, memo } from 'react';
 import type { RawMaterialResponse } from '../../types/ipc';
 import { useI18n } from '../../lib/i18n';
 import { useDebouncedValue } from '../../hooks/use-debounce';
@@ -64,7 +64,7 @@ export default function StorageTab() {
         <div>
           <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">{t('storage.rawMaterials')}</h2>
           <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-            Manage raw material stock levels. Materials are consumed during production and assembly.
+            {t('storage.subtitle')}
           </p>
         </div>
         <div className="flex gap-2">
@@ -78,7 +78,7 @@ export default function StorageTab() {
             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
             </svg>
-            Add Material
+            {t('storage.addMaterial')}
           </button>
         </div>
       </div>
@@ -94,10 +94,10 @@ export default function StorageTab() {
             <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
           </svg>
           <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
-            {rawMaterials.length === 0 ? 'No raw materials yet' : 'No materials match your search'}
+            {rawMaterials.length === 0 ? t('storage.noMaterials') : t('storage.noMatch')}
           </p>
           <p className="mt-1 text-xs text-zinc-400 dark:text-zinc-500">
-            {rawMaterials.length === 0 ? 'Click "Add Material" to add your first raw material.' : 'Try a different search term.'}
+            {rawMaterials.length === 0 ? t('storage.noMaterialsHint') : t('storage.noMatchHint')}
           </p>
         </div>
       ) : (
@@ -130,11 +130,12 @@ export default function StorageTab() {
 
 // ── Raw Material Card ───────────────────────────────────────
 
-function RawMaterialCard({
+const RawMaterialCard = memo(function RawMaterialCard({
   material, onAdjustStock, onEdit, onDelete,
 }: {
   material: RawMaterialResponse; onAdjustStock: () => void; onEdit: () => void; onDelete: () => void;
 }) {
+  const { t } = useI18n();
   const stockColor = material.stockQty <= 0 ? 'text-red-600 dark:text-red-400' : material.stockQty < 100 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400';
 
   return (
@@ -142,7 +143,7 @@ function RawMaterialCard({
       <div className="mb-3 flex items-start justify-between">
         <div>
           <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{material.name}</h3>
-          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">Unit: {material.unit}</p>
+          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">{t('storage.unit')}: {material.unit}</p>
         </div>
         <div className="flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
           <button onClick={onEdit} className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-blue-600 dark:hover:bg-zinc-800 dark:hover:text-blue-400" title="Edit">
@@ -158,18 +159,18 @@ function RawMaterialCard({
         </div>
       </div>
       <div className="mb-3 rounded-lg bg-zinc-50 p-3 dark:bg-zinc-800/50">
-        <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-0.5">Current Stock</p>
+        <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-0.5">{t('storage.currentStock')}</p>
         <p className={`text-2xl font-bold ${stockColor}`}>
           {material.stockQty.toLocaleString(undefined, { maximumFractionDigits: 2 })}
           <span className="ml-1 text-sm font-normal text-zinc-400">{material.unit}</span>
         </p>
       </div>
       <button onClick={onAdjustStock} className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700">
-        Adjust Stock
+        {t('storage.adjustStock')}
       </button>
     </div>
   );
-}
+});
 
 // ── Create Raw Material Modal ───────────────────────────────
 
@@ -194,23 +195,23 @@ function CreateRawMaterialModal({ onClose, onCreated }: { onClose: () => void; o
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
       <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl dark:bg-zinc-900" onClick={e => e.stopPropagation()}>
-        <h2 className="mb-4 text-lg font-bold text-zinc-900 dark:text-zinc-100">Add Raw Material</h2>
+        <h2 className="mb-4 text-lg font-bold text-zinc-900 dark:text-zinc-100">{t('storage.addRawMaterial')}</h2>
         <form onSubmit={handleSubmit} className="space-y-3">
-          <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Material name (e.g., PVC, PP, Cardboard Box A)" className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-blue-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100" required autoFocus />
+          <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder={t('storage.materialPlaceholder')} className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-blue-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100" required autoFocus />
           <div>
-            <label className="text-xs text-zinc-500 dark:text-zinc-400 mb-1 block">Unit of measurement</label>
+            <label className="text-xs text-zinc-500 dark:text-zinc-400 mb-1 block">{t('storage.unitOfMeasurement')}</label>
             <select value={unit} onChange={(e) => setUnit(e.target.value)} className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-blue-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100">
-              <option value="g">Grams (g)</option>
-              <option value="kg">Kilograms (kg)</option>
-              <option value="units">Units</option>
-              <option value="meters">Meters</option>
-              <option value="liters">Liters</option>
-              <option value="sheets">Sheets</option>
+              <option value="g">{t('storage.grams')}</option>
+              <option value="kg">{t('storage.kilograms')}</option>
+              <option value="units">{t('storage.unitsLabel')}</option>
+              <option value="meters">{t('storage.meters')}</option>
+              <option value="liters">{t('storage.liters')}</option>
+              <option value="sheets">{t('storage.sheets')}</option>
             </select>
           </div>
           <div className="flex gap-2 pt-2">
             <button type="submit" disabled={isSubmitting || !name.trim()} className="flex-1 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
-              {isSubmitting ? 'Creating...' : 'Add Material'}
+              {isSubmitting ? t('storage.creating') : t('storage.addMaterial')}
             </button>
             <button type="button" onClick={onClose} className="rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">{t('common.cancel')}</button>
           </div>
@@ -247,24 +248,24 @@ function AdjustStockModal({ material, onClose, onAdjusted }: { material: RawMate
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
       <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl dark:bg-zinc-900" onClick={e => e.stopPropagation()}>
-        <h2 className="mb-1 text-lg font-bold text-zinc-900 dark:text-zinc-100">Adjust Stock</h2>
+        <h2 className="mb-1 text-lg font-bold text-zinc-900 dark:text-zinc-100">{t('storage.adjustStock')}</h2>
         <p className="mb-4 text-sm text-zinc-500 dark:text-zinc-400">
           {material.name} — Current: {material.stockQty.toLocaleString(undefined, { maximumFractionDigits: 2 })} {material.unit}
         </p>
         <form onSubmit={handleSubmit} className="space-y-3">
           <div className="flex rounded-lg border border-zinc-300 dark:border-zinc-700 overflow-hidden">
-            <button type="button" onClick={() => setMode('add')} className={`flex-1 py-2 text-sm font-medium transition-colors ${mode === 'add' ? 'bg-emerald-600 text-white' : 'bg-white text-zinc-600 hover:bg-zinc-50 dark:bg-zinc-800 dark:text-zinc-400'}`}>+ Add Stock</button>
-            <button type="button" onClick={() => setMode('remove')} className={`flex-1 py-2 text-sm font-medium transition-colors ${mode === 'remove' ? 'bg-red-600 text-white' : 'bg-white text-zinc-600 hover:bg-zinc-50 dark:bg-zinc-800 dark:text-zinc-400'}`}>- Remove Stock</button>
+            <button type="button" onClick={() => setMode('add')} className={`flex-1 py-2 text-sm font-medium transition-colors ${mode === 'add' ? 'bg-emerald-600 text-white' : 'bg-white text-zinc-600 hover:bg-zinc-50 dark:bg-zinc-800 dark:text-zinc-400'}`}>+ {t('storage.addStock')}</button>
+            <button type="button" onClick={() => setMode('remove')} className={`flex-1 py-2 text-sm font-medium transition-colors ${mode === 'remove' ? 'bg-red-600 text-white' : 'bg-white text-zinc-600 hover:bg-zinc-50 dark:bg-zinc-800 dark:text-zinc-400'}`}>- {t('storage.removeStock')}</button>
           </div>
           <div className="relative">
             <input type="number" step="any" min="0" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder={`Amount in ${material.unit}`} className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 pr-12 text-sm text-zinc-900 outline-none focus:border-blue-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100" required autoFocus />
             <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-400">{material.unit}</span>
           </div>
-          <input type="text" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Reason (optional — e.g., Shipment received)" className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-blue-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100" />
+          <input type="text" value={reason} onChange={(e) => setReason(e.target.value)} placeholder={t('storage.reasonPlaceholder')} className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-blue-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100" />
           {amount && Number(amount) > 0 && (
             <div className="rounded-lg bg-zinc-50 p-3 dark:bg-zinc-800/50">
               <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                New stock will be:{' '}
+                {t('storage.newStockWillBe')}{' '}
                 <span className="font-semibold text-zinc-900 dark:text-zinc-100">
                   {(material.stockQty + (mode === 'add' ? Number(amount) : -Number(amount))).toLocaleString(undefined, { maximumFractionDigits: 2 })} {material.unit}
                 </span>
@@ -273,7 +274,7 @@ function AdjustStockModal({ material, onClose, onAdjusted }: { material: RawMate
           )}
           <div className="flex gap-2 pt-2">
             <button type="submit" disabled={isSubmitting || !amount || Number(amount) <= 0} className={`flex-1 rounded-lg px-4 py-2 text-sm font-medium text-white disabled:opacity-50 ${mode === 'add' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-red-600 hover:bg-red-700'}`}>
-              {isSubmitting ? 'Adjusting...' : mode === 'add' ? 'Add Stock' : 'Remove Stock'}
+              {isSubmitting ? t('storage.adjusting') : mode === 'add' ? t('storage.addStock') : t('storage.removeStock')}
             </button>
             <button type="button" onClick={onClose} className="rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">{t('common.cancel')}</button>
           </div>
@@ -306,23 +307,23 @@ function EditRawMaterialModal({ material, onClose, onSaved }: { material: RawMat
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
       <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl dark:bg-zinc-900" onClick={e => e.stopPropagation()}>
-        <h2 className="mb-4 text-lg font-bold text-zinc-900 dark:text-zinc-100">Edit Raw Material</h2>
+        <h2 className="mb-4 text-lg font-bold text-zinc-900 dark:text-zinc-100">{t('storage.editRawMaterial')}</h2>
         <form onSubmit={handleSubmit} className="space-y-3">
-          <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Material name" className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-blue-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100" required autoFocus />
+          <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder={t('storage.materialName')} className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-blue-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100" required autoFocus />
           <div>
-            <label className="text-xs text-zinc-500 dark:text-zinc-400 mb-1 block">Unit of measurement</label>
+            <label className="text-xs text-zinc-500 dark:text-zinc-400 mb-1 block">{t('storage.unitOfMeasurement')}</label>
             <select value={unit} onChange={(e) => setUnit(e.target.value)} className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-blue-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100">
-              <option value="g">Grams (g)</option>
-              <option value="kg">Kilograms (kg)</option>
-              <option value="units">Units</option>
-              <option value="meters">Meters</option>
-              <option value="liters">Liters</option>
-              <option value="sheets">Sheets</option>
+              <option value="g">{t('storage.grams')}</option>
+              <option value="kg">{t('storage.kilograms')}</option>
+              <option value="units">{t('storage.unitsLabel')}</option>
+              <option value="meters">{t('storage.meters')}</option>
+              <option value="liters">{t('storage.liters')}</option>
+              <option value="sheets">{t('storage.sheets')}</option>
             </select>
           </div>
           <div className="flex gap-2 pt-2">
             <button type="submit" disabled={isSubmitting || !name.trim()} className="flex-1 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
-              {isSubmitting ? 'Saving...' : t('common.save')}
+              {isSubmitting ? t('storage.saving') : t('common.save')}
             </button>
             <button type="button" onClick={onClose} className="rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">{t('common.cancel')}</button>
           </div>

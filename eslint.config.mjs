@@ -26,7 +26,7 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     "node_modules/**",
     "prisma/**",
-    "main/**"
+    "electron/main/**"
   ]),
 ]);
 

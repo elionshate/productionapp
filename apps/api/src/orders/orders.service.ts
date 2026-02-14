@@ -43,25 +43,36 @@ export class OrdersService {
     notes?: string;
     items: Array<{ productId: string; boxesNeeded: number }>;
   }) {
-    const result = await this.prisma.$queryRaw<{ max_num: number | null }[]>`
-      SELECT MAX(order_number) as max_num FROM orders
-    `;
-    const nextOrderNumber = Number(result[0]?.max_num ?? 0) + 1;
     const status = data.status ?? 'pending';
 
-    const orderId = crypto.randomUUID();
-    await this.prisma.$executeRaw`
-      INSERT INTO orders (id, order_number, client_name, status, notes, created_at)
-      VALUES (${orderId}, ${nextOrderNumber}, ${data.clientName}, ${status}, ${data.notes ?? null}, datetime('now'))
-    `;
-
-    for (const item of data.items) {
-      const itemId = crypto.randomUUID();
-      await this.prisma.$executeRaw`
-        INSERT INTO order_items (id, order_id, product_id, boxes_needed, created_at)
-        VALUES (${itemId}, ${orderId}, ${item.productId}, ${item.boxesNeeded}, datetime('now'))
+    // Atomic order creation within a transaction to prevent order number race conditions.
+    // Uses Prisma Client (not raw SQL) for CUID generation and DB-agnostic datetime.
+    const order = await this.prisma.$transaction(async (tx) => {
+      // Atomic next order number (inside transaction for serialization)
+      const result = await tx.$queryRaw<{ max_num: number | null }[]>`
+        SELECT MAX(order_number) as max_num FROM orders
       `;
-    }
+      const nextOrderNumber = Number(result[0]?.max_num ?? 0) + 1;
+
+      const newOrder = await tx.order.create({
+        data: {
+          orderNumber: nextOrderNumber,
+          clientName: data.clientName,
+          status,
+          notes: data.notes ?? null,
+          orderItems: {
+            create: data.items.map((item) => ({
+              productId: item.productId,
+              boxesNeeded: item.boxesNeeded,
+            })),
+          },
+        },
+      });
+
+      return newOrder;
+    });
+
+    const orderId = order.id;
 
     // Check raw material availability for production orders
     if (status === 'in_production') {
@@ -104,11 +115,11 @@ export class OrdersService {
       }
     }
 
-    const order = await this.prisma.order.findUnique({
+    const createdOrder = await this.prisma.order.findUnique({
       where: { id: orderId },
       include: this.defaultInclude,
     });
-    return serialize(order);
+    return serialize(createdOrder);
   }
 
   async update(id: string, data: { status?: string; notes?: string }) {
@@ -262,7 +273,7 @@ export class OrdersService {
             materialId: matId,
             materialName: item.product.boxRawMaterial.name,
             unit: item.product.boxRawMaterial.unit,
-            totalNeeded: item.boxesNeeded,
+            totalNeeded: boxesStillNeeded,
             currentStock: item.product.boxRawMaterial.stockQty,
           });
         }
@@ -311,16 +322,19 @@ export class OrdersService {
     });
     if (existing) throw new BadRequestException('This product is already in the order');
 
-    const itemId = crypto.randomUUID();
-    await this.prisma.$executeRaw`
-      INSERT INTO order_items (id, order_id, product_id, boxes_needed, created_at)
-      VALUES (${itemId}, ${orderId}, ${data.productId}, ${data.boxesNeeded}, datetime('now'))
-    `;
+    // Create order item using Prisma Client (CUID auto-generation, DB-agnostic datetime)
+    const newOrderItem = await this.prisma.orderItem.create({
+      data: {
+        orderId,
+        productId: data.productId,
+        boxesNeeded: data.boxesNeeded,
+      },
+    });
 
     // If order is already in_production, generate manufacturing orders for the new item
     if (order.status === 'in_production') {
       const newItem = await this.prisma.orderItem.findUnique({
-        where: { id: itemId },
+        where: { id: newOrderItem.id },
         include: {
           product: { include: { productElements: { include: { element: true } } } },
         },

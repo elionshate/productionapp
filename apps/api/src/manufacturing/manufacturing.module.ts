@@ -5,6 +5,5 @@ import { ManufacturingService } from './manufacturing.service';
 @Module({
   controllers: [ManufacturingController],
   providers: [ManufacturingService],
-  exports: [ManufacturingService],
 })
 export class ManufacturingModule {}

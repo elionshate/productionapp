@@ -81,8 +81,14 @@ app.whenReady().then(async () => {
     if (!useDevServer) {
       protocol.handle('app', (request) => {
         const { pathname } = new URL(request.url);
-        const filePath = path.join(appRoot, 'out', decodeURIComponent(pathname));
-        return net.fetch(url.pathToFileURL(filePath).toString());
+        // Path-traversal guard: resolve and verify the file stays within out/
+        const outDir = path.resolve(appRoot, 'out');
+        const resolved = path.resolve(outDir, decodeURIComponent(pathname.replace(/^\//, '')));
+        if (!resolved.startsWith(outDir)) {
+          // Attempted directory traversal — return 403
+          return new Response('Forbidden', { status: 403 });
+        }
+        return net.fetch(url.pathToFileURL(resolved).toString());
       });
     }
 
@@ -99,6 +105,15 @@ app.whenReady().then(async () => {
     const apiPort = await serverManager.start(dbPath);
     console.log(`[Electron] API server ready on port ${apiPort}`);
 
+    // Register crash recovery handler — notify renderer if server dies unexpectedly
+    serverManager.onCrash((code) => {
+      console.error(`[Electron] API server crashed with code ${code} — notifying renderer`);
+      mainWindow?.webContents.send('update-status', {
+        status: 'error',
+        error: `API server crashed (exit code ${code}). Please restart the application.`,
+      });
+    });
+
     // Create window after server is ready — pass port via env for preload
     process.env.API_PORT = String(apiPort);
 
@@ -111,7 +126,10 @@ app.whenReady().then(async () => {
     // Handle native image selection dialog
     ipcMain.handle('select-image', async () => {
       try {
-        const result = await dialog.showOpenDialog(mainWindow!, {
+        if (!mainWindow) {
+          return { success: false, error: 'No active window' };
+        }
+        const result = await dialog.showOpenDialog(mainWindow, {
           title: 'Select Image',
           filters: [
             { name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'] },
@@ -213,6 +231,9 @@ app.on('window-all-closed', () => {
   }
 });
 
-app.on('before-quit', async () => {
-  await serverManager.stop();
+app.on('before-quit', (e) => {
+  e.preventDefault();
+  serverManager.stop().finally(() => {
+    app.exit(0);
+  });
 });

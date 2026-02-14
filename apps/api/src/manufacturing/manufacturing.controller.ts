@@ -1,5 +1,6 @@
 import { Controller, Get, Post, Put, Delete, Body, Param } from '@nestjs/common';
 import { ManufacturingService } from './manufacturing.service';
+import { CreateManufacturingDto, UpdateManufacturingDto } from './dto/manufacturing.dto';
 
 @Controller('manufacturing')
 export class ManufacturingController {
@@ -18,13 +19,13 @@ export class ManufacturingController {
   }
 
   @Post()
-  async create(@Body() body: { orderId: string; productId: string; quantityToMake: number }) {
+  async create(@Body() body: CreateManufacturingDto) {
     const data = await this.manufacturingService.create(body);
     return { success: true, data };
   }
 
   @Put(':id')
-  async update(@Param('id') id: string, @Body() body: { status?: string }) {
+  async update(@Param('id') id: string, @Body() body: UpdateManufacturingDto) {
     const data = await this.manufacturingService.update(id, body);
     return { success: true, data };
   }

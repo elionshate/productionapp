@@ -9,19 +9,12 @@ export function cn(...classes: (string | undefined | null | false)[]) {
   return classes.filter(Boolean).join(' ');
 }
 
-export function formatDate(date: Date | string): string {
-  return new Intl.DateTimeFormat('en-US', {
+export function formatDate(date: Date | string, locale = 'en-US'): string {
+  return new Intl.DateTimeFormat(locale, {
     year: 'numeric',
     month: 'long',
     day: 'numeric',
   }).format(new Date(date));
-}
-
-export function formatCurrency(amount: number, currency = 'USD'): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency,
-  }).format(amount);
 }
 
 /**
