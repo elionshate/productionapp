@@ -48,6 +48,44 @@ export class InventoryService {
         throw new BadRequestException('Adjustment would result in negative inventory');
       }
 
+      // Reconcile allocations when inventory is REDUCED.
+      // If total allocated for this element now exceeds the new inventory level,
+      // trim allocations from the NEWEST orders first (highest orderNumber),
+      // so the oldest (highest priority) orders keep their allocations longest.
+      if (data.changeAmount < 0) {
+        const allocations = await tx.inventoryAllocation.findMany({
+          where: { elementId: data.elementId },
+          include: { order: { select: { orderNumber: true } } },
+          orderBy: { order: { orderNumber: 'desc' } }, // Newest orders trimmed first
+        });
+
+        const totalAllocated = allocations.reduce((sum, a) => sum + a.amountAllocated, 0);
+        const newTotal = inventory.totalAmount;
+
+        if (totalAllocated > newTotal) {
+          let excess = totalAllocated - newTotal;
+
+          for (const alloc of allocations) {
+            if (excess <= 0) break;
+
+            if (alloc.amountAllocated <= excess) {
+              // This entire allocation must be removed
+              excess -= alloc.amountAllocated;
+              await tx.inventoryAllocation.delete({
+                where: { id: alloc.id },
+              });
+            } else {
+              // Partially reduce this allocation
+              await tx.inventoryAllocation.update({
+                where: { id: alloc.id },
+                data: { amountAllocated: alloc.amountAllocated - excess },
+              });
+              excess = 0;
+            }
+          }
+        }
+      }
+
       return inventory;
     });
 
