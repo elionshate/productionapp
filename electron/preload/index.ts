@@ -23,6 +23,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => { ipcRenderer.removeListener('update-status', handler); };
   },
 
-  /** Quit app and install pending update */
+  /** Quit app and install pending update (silent) */
   quitAndInstall: () => ipcRenderer.invoke('quit-and-install'),
+
+  /** Postpone auto-install countdown */
+  postponeUpdate: () => ipcRenderer.invoke('postpone-update'),
 });

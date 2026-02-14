@@ -157,9 +157,9 @@ app.whenReady().then(async () => {
       }
     });
 
-    // Handle auto-update install
+    // Handle auto-update install — silent mode (no NSIS wizard) + force restart
     ipcMain.handle('quit-and-install', () => {
-      autoUpdater.quitAndInstall();
+      autoUpdater.quitAndInstall(true, true);
     });
 
     createWindow(apiPort);
@@ -204,6 +204,20 @@ app.whenReady().then(async () => {
         mainWindow?.webContents.send('update-status', {
           status: 'downloaded',
           version: info.version,
+        });
+
+        // Auto-install after 10 seconds — gives the renderer time to show
+        // a countdown notification. The renderer can cancel via IPC if the
+        // user clicks "Postpone".
+        const autoInstallTimer = setTimeout(() => {
+          console.log('[AutoUpdater] Auto-installing update (silent)...');
+          autoUpdater.quitAndInstall(true, true);
+        }, 10_000);
+
+        // Allow renderer to cancel the auto-install countdown
+        ipcMain.handleOnce('postpone-update', () => {
+          clearTimeout(autoInstallTimer);
+          console.log('[AutoUpdater] User postponed auto-install');
         });
       });
 

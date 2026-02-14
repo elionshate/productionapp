@@ -308,6 +308,7 @@ type TranslationKeys = {
   'update.downloaded': string;
   'update.readyTitle': string;
   'update.readyMsg': string;
+  'update.autoInstallIn': string;
   'update.restartInstall': string;
   'update.installing': string;
   'update.later': string;
@@ -617,9 +618,10 @@ const translations: Record<Language, TranslationKeys> = {
     'update.downloaded': 'downloaded',
     'update.readyTitle': 'Update Ready to Install',
     'update.readyMsg': 'has been downloaded and is ready to install.',
-    'update.restartInstall': 'Restart & Install',
+    'update.autoInstallIn': 'Installing automatically in',
+    'update.restartInstall': 'Install Now',
     'update.installing': 'Installing...',
-    'update.later': 'Later',
+    'update.later': 'Postpone',
 
     'storage.subtitle': 'Manage raw material stock levels',
     'storage.addMaterial': 'Add Material',
@@ -920,9 +922,10 @@ const translations: Record<Language, TranslationKeys> = {
     'update.downloaded': 'shkarkuar',
     'update.readyTitle': 'Përditësimi Gati për Instalim',
     'update.readyMsg': 'është shkarkuar dhe gati për instalim.',
-    'update.restartInstall': 'Rifillo & Instalo',
+    'update.autoInstallIn': 'Instalimi automatik për',
+    'update.restartInstall': 'Instalo Tani',
     'update.installing': 'Duke instaluar...',
-    'update.later': 'Më vonë',
+    'update.later': 'Shtyje',
 
     'storage.subtitle': 'Menaxho nivelet e stokut të lëndës së parë',
     'storage.addMaterial': 'Shto Material',
@@ -1223,9 +1226,10 @@ const translations: Record<Language, TranslationKeys> = {
     'update.downloaded': 'преземено',
     'update.readyTitle': 'Ажурирањето е Подготвено',
     'update.readyMsg': 'е преземено и подготвено за инсталирање.',
-    'update.restartInstall': 'Рестартирај и Инсталирај',
+    'update.autoInstallIn': 'Автоматско инсталирање за',
+    'update.restartInstall': 'Инсталирај Сега',
     'update.installing': 'Се инсталира...',
-    'update.later': 'Подоцна',
+    'update.later': 'Одложи',
 
     'storage.subtitle': 'Управувајте со нивоата на залиха на суровини',
     'storage.addMaterial': 'Додај Материјал',

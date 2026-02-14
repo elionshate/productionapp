@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useI18n } from '../lib/i18n';
 
 interface UpdateStatus {
@@ -10,14 +10,17 @@ interface UpdateStatus {
   error?: string;
 }
 
+const AUTO_INSTALL_SECONDS = 10;
+
 export default function UpdateNotification() {
   const { t } = useI18n();
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus | null>(null);
   const [isInstalling, setIsInstalling] = useState(false);
+  const [countdown, setCountdown] = useState<number | null>(null);
+  const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     if (typeof window !== 'undefined' && window.electron?.onUpdateStatus) {
-      // Set up listener for update status changes — store cleanup function
       const unsubscribe = window.electron.onUpdateStatus((status: any) => {
         console.log('[UpdateNotification] Status:', status);
         setUpdateStatus(status);
@@ -28,16 +31,48 @@ export default function UpdateNotification() {
     }
   }, []);
 
-  const handleInstallUpdate = async () => {
-    try {
-      setIsInstalling(true);
-      console.log('[UpdateNotification] Installing update...');
-      await window.electron?.quitAndInstall();
-    } catch (error) {
-      console.error('[UpdateNotification] Install failed:', error);
-      setIsInstalling(false);
+  // Start countdown when update is downloaded
+  useEffect(() => {
+    if (updateStatus?.status === 'downloaded') {
+      setCountdown(AUTO_INSTALL_SECONDS);
+      countdownRef.current = setInterval(() => {
+        setCountdown((prev) => {
+          if (prev === null || prev <= 1) {
+            if (countdownRef.current) clearInterval(countdownRef.current);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+      return () => {
+        if (countdownRef.current) clearInterval(countdownRef.current);
+      };
     }
-  };
+  }, [updateStatus?.status]);
+
+  // Auto-install when countdown reaches 0
+  useEffect(() => {
+    if (countdown === 0 && !isInstalling) {
+      setIsInstalling(true);
+      console.log('[UpdateNotification] Auto-installing update...');
+      window.electron?.quitAndInstall();
+    }
+  }, [countdown, isInstalling]);
+
+  const handlePostpone = useCallback(() => {
+    if (countdownRef.current) clearInterval(countdownRef.current);
+    setCountdown(null);
+    setUpdateStatus(null);
+    window.electron?.postponeUpdate();
+    console.log('[UpdateNotification] User postponed update');
+  }, []);
+
+  const handleInstallNow = useCallback(async () => {
+    if (countdownRef.current) clearInterval(countdownRef.current);
+    setIsInstalling(true);
+    console.log('[UpdateNotification] Installing update now...');
+    await window.electron?.quitAndInstall();
+  }, []);
 
   // Don't show notification if no update or already up to date
   if (!updateStatus || updateStatus.status === 'up-to-date') {
@@ -84,24 +119,29 @@ export default function UpdateNotification() {
     );
   }
 
-  // Downloaded and ready to install
+  // Downloaded and ready to install — auto-installs with countdown
   if (updateStatus.status === 'downloaded') {
     return (
       <div className="fixed bottom-4 right-4 bg-green-600 text-white p-4 rounded-lg shadow-lg max-w-sm animate-in fade-in slide-in-from-bottom-4 z-50">
         <p className="font-bold mb-2">{t('update.readyTitle')}</p>
-        <p className="text-sm mb-4">
+        <p className="text-sm mb-3">
           {updateStatus.version || 'new'} {t('update.readyMsg')}
         </p>
+        {countdown !== null && countdown > 0 && (
+          <p className="text-sm mb-3 text-green-100">
+            {t('update.autoInstallIn')} {countdown}s...
+          </p>
+        )}
         <div className="flex gap-2">
           <button
-            onClick={handleInstallUpdate}
+            onClick={handleInstallNow}
             disabled={isInstalling}
             className="flex-1 bg-white text-green-600 px-3 py-2 rounded font-bold hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {isInstalling ? t('update.installing') : t('update.restartInstall')}
           </button>
           <button
-            onClick={() => setUpdateStatus(null)}
+            onClick={handlePostpone}
             disabled={isInstalling}
             className="px-3 py-2 rounded font-semibold hover:bg-green-700 disabled:opacity-50 transition-colors"
           >

@@ -483,6 +483,7 @@ export interface ElectronAPI {
   getAppVersion: () => Promise<string>;
   checkForUpdates: () => Promise<{ status: string; version?: string; error?: string }>;
   quitAndInstall: () => Promise<void>;
+  postponeUpdate: () => Promise<void>;
   onUpdateStatus: (callback: (data: { status: string; version?: string; percent?: number; error?: string }) => void) => () => void;
 }
 
@@ -497,6 +498,7 @@ export interface NativeElectronAPI {
   selectImage: () => Promise<{ success: boolean; data?: string | null; error?: string }>;
   onUpdateStatus: (callback: (status: unknown) => void) => () => void;
   quitAndInstall: () => Promise<void>;
+  postponeUpdate: () => Promise<void>;
 }
 
 // ============================================================================

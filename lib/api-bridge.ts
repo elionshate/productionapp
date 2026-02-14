@@ -133,6 +133,16 @@ export function initializeApiBridge() {
         // not in Electron
       }
     },
+    postponeUpdate: () => {
+      try {
+        const electronAPI = (window as any).electronAPI;
+        if (electronAPI?.postponeUpdate) {
+          electronAPI.postponeUpdate();
+        }
+      } catch {
+        // not in Electron
+      }
+    },
   };
 
   (window as any).electron = bridge;
